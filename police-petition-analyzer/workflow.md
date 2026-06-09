@@ -2,36 +2,43 @@
 
 This directory (`police-petition-analyzer`) acts as a dedicated **AI Extraction & Analysis Microservice** for the FIRAudit platform. 
 
-Instead of heavily loading the main backend with complex AI integrations and OCR (Optical Character Recognition) tasks, this independent service handles the heavy lifting of reading documents and structuring the legal data.
+Instead of heavily loading the main backend with complex AI integrations and OCR (Optical Character Recognition) tasks, this independent Node.js service handles the heavy lifting of reading documents, structuring legal data, mapping sections, and generating official court-ready PDFs.
 
-## 🚀 The Core Process Flow
+## 🚀 The 5-Step AI Pipeline
 
-### 1. Document Ingestion
-- The user (Police Officer) uploads a handwritten petition or a typed complaint (PDF, JPG, PNG) via the React Frontend.
-- The Main Backend (`/backend`) receives the file and forwards it to this Analyzer Microservice.
+This microservice receives a petition image (via an API endpoint or the `test.html` testbed) and runs it through a sequential, 5-step generative AI pipeline powered by Google Gemini:
 
-### 2. Optical Character Recognition (OCR) & AI Processing
-Depending on the file type and language (English/Telugu):
-- **Handwritten Documents**: Sent to **Google Gemini Vision AI** to accurately transcribe messy handwriting.
-- **Typed Documents**: Processed using **Tesseract OCR** (or similar fast extraction tools) for quick text conversion.
+### Step 1: Document OCR & Translation
+- **Input**: Handwritten or typed police petition image (can be in regional languages like Telugu, Tamil, Hindi, etc.)
+- **Process**: Gemini Vision reads the image, extracts the text exactly as written, detects the original language, and translates the entire petition into English without summarizing.
 
-### 3. Legal Entity Extraction & Structuring
-Once the raw text is extracted, the AI agent parses the unstructured text and automatically maps it into the standard 15-section FIR format. It identifies:
-- **Complainant Details** (Name, Age, Address)
-- **Accused Details** (If known)
-- **Date, Time & Location of Occurrence**
-- **Core Facts / Narrative**
+### Step 2: Validation & 5W1H Extraction
+- **Input**: The translated English text from Step 1.
+- **Process**: The AI validates whether the text is a legitimate police petition. It then structures the unstructured narrative into a strict **5W1H format**:
+  - **WHO**: Complainant, victim, accused
+  - **WHAT**: The core incident or offence
+  - **WHEN**: Date and time
+  - **WHERE**: Location of the incident
+  - **WHY**: Motive
+  - **HOW**: Method of the crime
 
-### 4. Legal Compliance Audit
-The extracted facts are mapped against the legal database:
-- **BNSS / BNS / IPC / NDPS Sections**: The AI suggests the correct legal sections based on the crime described.
-- **Blocker Identification**: The system flags missing mandatory information (e.g., missing Forensic Lab IDs, unclear jurisdiction).
+### Step 3: Legal Audit & Section Mapping
+- **Input**: The extracted 5W1H facts.
+- **Process**: A Senior Legal Advisor AI persona analyzes the facts and maps the criminal offences to the relevant **Bharatiya Nyaya Sanhita (BNS)** sections (and cross-references the old IPC sections). It also drafts a formal, concise 1-paragraph summary narrative for the official FIR document.
 
-### 5. Data Return
-- The structured JSON object (containing the drafted FIR sections, confidence scores, and compliance blockers) is returned to the Main Backend.
-- The Main Backend saves this audit log to MongoDB and sends the real-time feedback back to the Frontend Dashboard for the officer to review.
+### Step 4: BNSS Procedural Compliance Check
+- **Input**: The 5W1H facts and translated text.
+- **Process**: The AI acts as a Procedural Compliance Auditor. It verifies if the petition meets the standard FIR registration parameters under the **Bharatiya Nagarik Suraksha Sanhita (BNSS)**. It calculates a compliance score (out of 100) and lists any "Blockers" (e.g., missing timeline, missing complainant details) that prevent immediate registration.
 
-## 🛠 Tech Stack (Proposed)
-- **Framework**: Node.js / Express (or Python/FastAPI if heavy ML libraries are needed later)
-- **AI Integration**: `@google/genai` (Gemini SDK)
-- **Document Processing**: `pdf-parse`, `tesseract.js`
+### Step 5: Official FIR PDF Generation
+- **Process**: If the petition passes the pipeline successfully, the Node.js server utilizes `pdfkit` to automatically generate a formal Court-Ready FIR Draft PDF.
+- **Output**: The PDF includes the Date, Applied Legal Sections, Complainant/Accused details, 5W1H details, the AI Narrative Draft, the Compliance Score, and the Blocker list. The file is saved to the `/test_petitions` directory and a download URL is returned.
+
+## 📡 Output Delivery
+The microservice streams its progress via `NDJSON` (Newline Delimited JSON) so that the frontend UI can display real-time updates for each step. Once Step 5 completes, it sends the final consolidated JSON object with the `pdf_url` back to the client.
+
+## 🛠 Tech Stack
+- **Framework**: Node.js / Express
+- **AI Integration**: `@google/genai` (Gemini 2.5 Flash / Vision)
+- **File Handling**: `multer` (in-memory image processing)
+- **Document Generation**: `pdfkit` (PDF rendering)
