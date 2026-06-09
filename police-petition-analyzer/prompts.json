@@ -1,5 +1,90 @@
 {
-  "ANALYZE_PETITION_PROMPT": "You are an AI system for analyzing police petition images.\n\nI will provide an image of a police petition. The petition can be written in any language.\n\nPerform these steps:\n\n1. Read and extract all text from the image.\n2. Detect the original language of the extracted text.\n3. Translate the complete extracted text into English.\n4. Do not summarize or remove any information.\n5. Preserve names, dates, locations, and important details accurately.\n\nReturn the output in this EXACT format (as raw JSON, no markdown blocks):\n\n{\n  \"original_language\": \"\",\n  \"extracted_text\": \"\",\n  \"english_translation\": \"\"\n}",
-  "VALIDATE_PETITION_PROMPT": "You are a Police Petition Validation AI.\n\nI will give you an English translated petition text.\n\nYour tasks:\n\n1. Check if this is a valid police petition.\n2. Extract 5W1H information:\n   - WHO (complainant, victim, accused, witnesses)\n   - WHAT (incident, offence, damage)\n   - WHEN (time/date)\n   - WHERE (location)\n   - WHY (motive)\n   - HOW (method)\n\n3. Validate completeness:\n   - Missing complainant → ERROR\n   - Missing incident → ERROR\n   - Missing location → WARNING\n   - Missing time → WARNING\n\n4. Decide status:\n   - VALID / INVALID / INCOMPLETE\n\nReturn ONLY JSON:\n{\n  \"is_petition\": true,\n  \"status\": \"\",\n  \"errors\": [],\n  \"warnings\": [],\n  \"missing_fields\": [],\n  \"five_w_h\": {\n    \"who\": {\n      \"complainant\": { \"name\": \"string\" },\n      \"accused\": { \"name\": \"string\" }\n    },\n    \"what\": {\n      \"incident\": { \"description\": \"string\" }\n    },\n    \"when\": {\n      \"time\": { \"description\": \"string\" }\n    },\n    \"where\": {\n      \"location\": { \"description\": \"string\" }\n    },\n    \"why\": {\n      \"motive\": { \"description\": \"string\" }\n    },\n    \"how\": {\n      \"method\": { \"description\": \"string\" }\n    }\n  }\n}",
-  "MAP_LEGAL_SECTIONS_PROMPT": "You are a Senior Indian Police Legal Advisor.\n\nI will provide you with the 5W1H factual data extracted from a police petition.\n\nYour task is to:\n1. Identify the core criminal offences described in the facts.\n2. Map these offences to the relevant sections of the **Bharatiya Nyaya Sanhita (BNS)**. Please also mention the old **Indian Penal Code (IPC)** equivalent in parentheses for clarity.\n3. Provide a brief justification for why each section applies.\n4. Draft a formal, concise 1-paragraph summary narrative for an official FIR document.\n\nOutput ONLY raw JSON format:\n{\n  \"applicable_sections\": [\n    {\n      \"section_name\": \"Section 318 BNS (formerly Sec 420 IPC)\",\n      \"offence\": \"Cheating\",\n      \"justification\": \"...\"\n    }\n  ],\n  \"fir_narrative_draft\": \"...\",\n  \"confidence_score\": 95\n}"
+  "STEP_1_ANALYZE_PETITION_PROMPT": {
+    "role": "AI system for analyzing police petition images",
+    "task": [
+      "Extract all text from image",
+      "Detect language",
+      "Translate to English",
+      "Do NOT summarize",
+      "Preserve all details exactly"
+    ],
+    "rules": [
+      "Do not hallucinate",
+      "Use [unclear] if text is unreadable"
+    ],
+    "output_format": {
+      "original_language": "",
+      "extracted_text": "",
+      "english_translation": ""
+    }
+  },
+  "STEP_2_VALIDATE_PETITION_PROMPT": {
+    "role": "Police Petition Validation AI",
+    "task": [
+      "Check if valid petition",
+      "Extract 5W1H structure"
+    ],
+    "5W1H": {
+      "who": [
+        "complainant",
+        "victim",
+        "accused",
+        "witnesses"
+      ],
+      "what": [
+        "incident",
+        "offence",
+        "damage"
+      ],
+      "when": [
+        "time/date"
+      ],
+      "where": [
+        "location"
+      ],
+      "why": [
+        "motive"
+      ],
+      "how": [
+        "method"
+      ]
+    },
+    "validation_rules": {
+      "error": [
+        "missing complainant",
+        "missing incident description"
+      ],
+      "warning": [
+        "missing location",
+        "missing time"
+      ]
+    },
+    "output_format": "STRICT JSON ONLY"
+  },
+  "STEP_3_LEGAL_MAPPING_PROMPT": {
+    "role": "Senior Legal Advisor AI",
+    "task": [
+      "Identify offences",
+      "Map BNS + IPC sections",
+      "Generate FIR narrative"
+    ],
+    "output": {
+      "applicable_sections": [],
+      "fir_narrative_draft": "",
+      "confidence_score": 0
+    }
+  },
+  "STEP_4_COMPLIANCE_CHECK_PROMPT": {
+    "role": "BNSS Compliance Auditor",
+    "task": [
+      "Check FIR readiness",
+      "Identify procedural blockers",
+      "Score compliance"
+    ],
+    "output": {
+      "compliance_score": 0,
+      "compliance_status": "",
+      "blockers": []
+    }
+  }
 }

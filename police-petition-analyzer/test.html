@@ -497,7 +497,7 @@
         } catch (error) {
             resultDiv.style.display = 'block';
             resultDiv.classList.add('result-error');
-            resultDiv.innerHTML = `<strong style="color: var(--error); font-family: 'Outfit', sans-serif;">✗ Connection Error</strong>\nEnsure the server is running on port 5001.\n${error.message}`;
+            resultDiv.innerHTML = `<strong style="color: var(--error); font-family: 'Outfit', sans-serif;">✗ Connection Error</strong>\nEnsure the server is running on port 3000.\n${error.message}`;
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Analyze with AI';
@@ -521,7 +521,9 @@
     function generateReportHTML(data) {
         const s1 = data.step1 || {};
         const s2 = data.step2 || {};
-
+        const s3 = data.step3 || {};
+        const s4 = data.step4 || {};
+        const s5 = data.step5 || {};
         let statusColor = 'var(--success)';
         if (s2.status === 'INVALID') statusColor = 'var(--error)';
         if (s2.status === 'INCOMPLETE') statusColor = '#f59e0b';
@@ -580,7 +582,6 @@
             </div>
         `;
 
-        const s3 = data.step3;
         if (s3 && s3.applicable_sections && s3.applicable_sections.length > 0) {
             html += `
             <div style="margin-bottom: 15px;">
@@ -603,6 +604,36 @@
                         "${s3.fir_narrative_draft}"
                     </div>
                 </div>`;
+            }
+            
+            if (s4 && s4.compliance_score) {
+                html += `
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #334155;">
+                    <strong style="color: #60a5fa;">🔍 Procedural Compliance (BNSS):</strong>
+                    <div style="margin-top: 8px; color: #e2e8f0;">
+                        <div style="display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px;">
+                            <span style="font-size: 24px; font-weight: 900; color: ${s4.compliance_score >= 90 ? '#10b981' : s4.compliance_score >= 70 ? '#f59e0b' : '#ef4444'};">${s4.compliance_score}</span>
+                            <span style="font-size: 14px; font-weight: bold; color: #94a3b8;">/ 100</span>
+                            <span style="margin-left: 10px; background-color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">${s4.compliance_status || 'Unknown'}</span>
+                        </div>
+                        <strong style="font-size: 13px; color: #94a3b8;">Blockers:</strong>
+                        <ul style="margin-top: 5px; margin-left: 20px; line-height: 1.6; color: #f87171;">
+                            ${s4.blockers && s4.blockers.length > 0 
+                                ? s4.blockers.map(b => `<li>${b}</li>`).join('') 
+                                : '<li style="color: #10b981;">No blockers found. Court-ready.</li>'}
+                        </ul>
+                    </div>
+                </div>`;
+            }
+
+            if (s5 && s5.pdf_url) {
+                html += `
+                    <div style="margin-top: 20px; text-align: center;">
+                        <a href="${s5.pdf_url}" target="_blank" style="display: inline-block; background-color: #3b82f6; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-family: 'Outfit', sans-serif; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                            📄 Download Official FIR PDF
+                        </a>
+                    </div>
+                `;
             }
         }
 

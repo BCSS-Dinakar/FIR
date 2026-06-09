@@ -3,6 +3,8 @@ const cors = require('cors');
 const multer = require('multer');
 const { GoogleGenAI } = require('@google/genai');
 const path = require('path');
+const fs = require('fs');
+const PDFDocument = require('pdfkit');
 require('dotenv').config();
 
 const app = express();
@@ -51,7 +53,7 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [
-        prompts.ANALYZE_PETITION_PROMPT,
+        JSON.stringify(prompts.STEP_1_ANALYZE_PETITION_PROMPT),
         {
           inlineData: {
             data: base64Image,
@@ -74,8 +76,8 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
     const validationResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [
-        prompts.VALIDATE_PETITION_PROMPT,
-        step1Result.english_translation
+        JSON.stringify(prompts.STEP_2_VALIDATE_PETITION_PROMPT),
+        `Translated Text: ${step1Result.english_translation}`
       ],
       config: {
         responseMimeType: 'application/json'
@@ -87,6 +89,7 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
     console.log('✅ Step 2: Validation complete.');
 
     let step3Result = null;
+    let step4Result = null;
     if (finalResult.status !== 'INVALID') {
       console.log('⚖️ Starting Step 3: Legal Audit & Section Mapping...');
       res.write(JSON.stringify({ status: 'progress', message: 'Step 3: Performing legal audit and mapping BNS sections...' }) + '\n');
@@ -94,7 +97,7 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
       const mappingResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [
-          prompts.MAP_LEGAL_SECTIONS_PROMPT,
+          JSON.stringify(prompts.STEP_3_LEGAL_MAPPING_PROMPT),
           JSON.stringify(finalResult.five_w_h)
         ],
         config: {
@@ -103,13 +106,114 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
       });
       step3Result = JSON.parse(mappingResponse.text);
       console.log('✅ Step 3: Legal Mapping complete.');
+      
+      // ----------------------------------------------------
+      // STEP 4: BNSS PROCEDURAL COMPLIANCE CHECK
+      // ----------------------------------------------------
+      console.log('🔍 Starting Step 4: BNSS Procedural Compliance Check...');
+      res.write(JSON.stringify({ status: 'progress', message: 'Step 4: Running BNSS procedural compliance check & scoring...' }) + '\n');
+      
+      try {
+        const complianceResponse = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            JSON.stringify(prompts.STEP_4_COMPLIANCE_CHECK_PROMPT),
+            JSON.stringify(finalResult.five_w_h, null, 2),
+            `Translated Text: ${step1Result.english_translation}`
+          ]
+        });
+        
+        // Strip markdown block if present
+        let complianceText = complianceResponse.text.trim();
+        if (complianceText.startsWith('```json')) complianceText = complianceText.replace(/^```json/, '');
+        if (complianceText.startsWith('```')) complianceText = complianceText.replace(/^```/, '');
+        if (complianceText.endsWith('```')) complianceText = complianceText.replace(/```$/, '');
+        
+        step4Result = JSON.parse(complianceText);
+        console.log('✅ Step 4: Compliance Check complete.');
+      } catch (err) {
+        console.error('⚠️ Step 4 failed:', err);
+        step4Result = { compliance_score: 'N/A', compliance_status: 'Error', blockers: ['Failed to run compliance check'] };
+      }
+      
+      // ----------------------------------------------------
+      // STEP 5: PDF GENERATION
+      // ----------------------------------------------------
+      console.log('📄 Generating Official FIR PDF...');
+      res.write(JSON.stringify({ status: 'progress', message: 'Step 5: Generating Court-Ready FIR PDF...' }) + '\n');
+      
+      let step5Result = null;
+      
+      const pdfFileName = `FIR_Draft_${Date.now()}.pdf`;
+      const pdfPath = path.join(__dirname, 'test_petitions', pdfFileName);
+      
+      const doc = new PDFDocument({ margin: 50 });
+      const stream = fs.createWriteStream(pdfPath);
+      doc.pipe(stream);
+      
+      doc.fontSize(20).font('Helvetica-Bold').text('FIRST INFORMATION REPORT (FIR) DRAFT', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(12).font('Helvetica').text(`Date Generated: ${new Date().toLocaleString()}`, { align: 'right' });
+      doc.moveDown(2);
+      
+      doc.fontSize(14).font('Helvetica-Bold').text('1. APPLIED LEGAL SECTIONS (BNS)');
+      doc.fontSize(12).font('Helvetica');
+      if (step3Result.applicable_sections && Array.isArray(step3Result.applicable_sections)) {
+        step3Result.applicable_sections.forEach(sec => {
+          doc.text(`• ${sec.section_name} - ${sec.offence}`);
+        });
+      }
+      doc.moveDown();
+      
+      doc.fontSize(14).font('Helvetica-Bold').text('2. PARTIES INVOLVED');
+      doc.fontSize(12).font('Helvetica');
+      doc.text(`Complainant: ${finalResult.five_w_h?.who?.complainant?.name || 'Unknown'}`);
+      doc.text(`Accused: ${finalResult.five_w_h?.who?.accused?.name || 'Unknown'}`);
+      doc.moveDown();
+      
+      doc.fontSize(14).font('Helvetica-Bold').text('3. INCIDENT DETAILS (5W1H)');
+      doc.fontSize(12).font('Helvetica');
+      doc.text(`What: ${finalResult.five_w_h?.what?.incident?.description || 'Unknown'}`);
+      doc.text(`When: ${finalResult.five_w_h?.when?.time?.description || 'Unknown'}`);
+      doc.text(`Where: ${finalResult.five_w_h?.where?.location?.description || 'Unknown'}`);
+      doc.text(`Why: ${finalResult.five_w_h?.why?.motive?.description || 'Unknown'}`);
+      doc.text(`How: ${finalResult.five_w_h?.how?.method?.description || 'Unknown'}`);
+      doc.moveDown();
+      
+      doc.fontSize(14).font('Helvetica-Bold').text('4. FORMAL NARRATIVE');
+      doc.fontSize(12).font('Helvetica').text(step3Result.fir_narrative_draft || 'No narrative generated.');
+      doc.moveDown();
+      
+      doc.fontSize(14).font('Helvetica-Bold').text('5. PROCEDURAL COMPLIANCE (BNSS)');
+      doc.fontSize(12).font('Helvetica');
+      doc.text(`Compliance Score: ${step4Result.compliance_score}/100`);
+      doc.text(`Status: ${step4Result.compliance_status}`);
+      doc.moveDown(0.5);
+      doc.text('Blockers:', { underline: true });
+      if (step4Result.blockers && step4Result.blockers.length > 0) {
+        step4Result.blockers.forEach(b => doc.text(`• ${b}`));
+      } else {
+        doc.text('None. Ready for registration.');
+      }
+      
+      doc.end();
+      
+      await new Promise((resolve) => {
+        stream.on('finish', resolve);
+        stream.on('error', resolve); // Proceed even if pdf fails
+      });
+      
+      console.log('✅ PDF Generation complete.');
+      step5Result = { pdf_url: `/test_petitions/${pdfFileName}` };
     }
 
     res.write(JSON.stringify({
       status: 'complete',
       step1: step1Result,
       step2: finalResult,
-      step3: step3Result
+      step3: step3Result,
+      step4: step4Result,
+      step5: step5Result
     }) + '\n');
     res.end();
 
