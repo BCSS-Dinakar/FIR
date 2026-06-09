@@ -196,15 +196,13 @@
             margin-top: 24px;
             background: rgba(15, 23, 42, 0.6);
             border: 1px solid var(--glass-border);
-            padding: 20px;
+            padding: 24px;
             border-radius: 12px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 14px;
-            white-space: pre-wrap;
+            font-size: 15px;
             display: none;
             word-break: break-word;
             line-height: 1.6;
-            max-height: 400px;
+            max-height: 500px;
             overflow-y: auto;
         }
 
@@ -448,15 +446,44 @@
                 body: formData
             });
 
-            const data = await response.json();
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Server error');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let finalData = null;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n').filter(line => line.trim());
+                
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.status === 'progress') {
+                            loader.innerHTML = `<span style="font-size: 20px; margin-right: 8px; display: inline-block; animation: spin 2s linear infinite;">⚙️</span> ${data.message}`;
+                        } else if (data.status === 'complete') {
+                            finalData = data;
+                        } else if (data.status === 'error') {
+                            throw new Error(data.message);
+                        }
+                    } catch(e) {
+                        if (e.message !== "Unexpected end of JSON input" && !e.message.includes("Unexpected token")) {
+                            throw e;
+                        }
+                    }
+                }
+            }
             
             resultDiv.style.display = 'block';
-            if (response.ok) {
+            if (finalData) {
                 resultDiv.classList.add('result-success');
-                resultDiv.innerHTML = `<strong style="color: var(--success); font-family: 'Outfit', sans-serif;">✓ Analysis Complete</strong>\n\n${JSON.stringify(data, null, 2)}`;
-            } else {
-                resultDiv.classList.add('result-error');
-                resultDiv.innerHTML = `<strong style="color: var(--error); font-family: 'Outfit', sans-serif;">✗ Analysis Failed</strong>\n\n${JSON.stringify(data, null, 2)}`;
+                resultDiv.innerHTML = generateReportHTML(finalData);
             }
         } catch (error) {
             resultDiv.style.display = 'block';
@@ -468,6 +495,78 @@
             loader.style.display = 'none';
         }
     });
+
+    function generateReportHTML(data) {
+        const s1 = data.step1 || {};
+        const s2 = data.step2 || {};
+
+        let statusColor = 'var(--success)';
+        if (s2.status === 'INVALID') statusColor = 'var(--error)';
+        if (s2.status === 'INCOMPLETE') statusColor = '#f59e0b';
+
+        let html = \`
+            <div style="margin-bottom: 20px;">
+                <h3 style="display: inline-block; margin-right: 15px; color: white;">Petition Analysis</h3>
+                <span style="background-color: \${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-weight: bold; font-size: 13px;">
+                    \${s2.status || 'UNKNOWN'}
+                </span>
+            </div>
+        \`;
+
+        if (s2.missing_fields && s2.missing_fields.length > 0) {
+            html += \`
+            <div style="margin-bottom: 15px;">
+                <strong style="color: #fca5a5;">❌ Missing Information:</strong>
+                <ul style="margin-top: 8px; margin-left: 20px; color: #e2e8f0; line-height: 1.8;">
+                    \${s2.missing_fields.map(field => \`<li>Missing \${field.replace(/\\./g, ' ').replace(/_/g, ' ')}</li>\`).join('')}
+                </ul>
+            </div>\`;
+        }
+
+        if (s2.errors && s2.errors.length > 0) {
+            html += \`
+            <div style="margin-bottom: 15px;">
+                <strong style="color: var(--error);">⚠️ Errors:</strong>
+                <ul style="margin-top: 8px; margin-left: 20px; color: #e2e8f0; line-height: 1.8;">
+                    \${s2.errors.map(e => \`<li>\${e}</li>\`).join('')}
+                </ul>
+            </div>\`;
+        }
+
+        if (s2.warnings && s2.warnings.length > 0) {
+            html += \`
+            <div style="margin-bottom: 15px;">
+                <strong style="color: #f59e0b;">⚠️ Warnings:</strong>
+                <ul style="margin-top: 8px; margin-left: 20px; color: #e2e8f0; line-height: 1.8;">
+                    \${s2.warnings.map(w => \`<li>\${w}</li>\`).join('')}
+                </ul>
+            </div>\`;
+        }
+
+        const w = s2.five_w_h || {};
+        html += \`
+            <div style="margin-bottom: 15px;">
+                <strong style="color: #60a5fa;">📝 5W1H Summary:</strong>
+                <ul style="margin-top: 8px; margin-left: 20px; color: #e2e8f0; line-height: 1.8;">
+                    <li><strong>WHO:</strong> \${w.who?.complainant?.name || 'Unknown'} (Complainant), \${w.who?.accused?.name || 'Unknown'} (Accused)</li>
+                    <li><strong>WHAT:</strong> \${w.what?.incident?.description || 'Unknown'}</li>
+                    <li><strong>WHEN:</strong> \${w.when?.time?.description || 'Unknown'}</li>
+                    <li><strong>WHERE:</strong> \${w.where?.location?.description || 'Unknown'}</li>
+                    <li><strong>WHY:</strong> \${w.why?.motive?.description || 'Unknown'}</li>
+                    <li><strong>HOW:</strong> \${w.how?.method?.description || 'Unknown'}</li>
+                </ul>
+            </div>
+        \`;
+
+        html += \`
+            <div style="margin-top: 24px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <strong style="color: #60a5fa;">🌐 Translated Text (\${s1.original_language || 'Unknown'}):</strong>
+                <p style="margin-top: 10px; color: #cbd5e1; white-space: pre-wrap; font-size: 14px;">\${s1.english_translation || 'No translation available.'}</p>
+            </div>
+        \`;
+
+        return html;
+    }
 </script>
 
 </body>

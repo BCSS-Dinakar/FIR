@@ -39,6 +39,10 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
     }
 
     console.log('🖼️ Received petition image for analysis...');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    
+    res.write(JSON.stringify({ status: 'progress', message: 'Step 1: Reading and translating image text...' }) + '\n');
 
     // Convert multer file buffer to base64 for Gemini API
     const base64Image = req.file.buffer.toString('base64');
@@ -61,14 +65,42 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
     });
 
     const resultText = response.text;
-    const jsonResult = JSON.parse(resultText);
+    const step1Result = JSON.parse(resultText);
+    
+    console.log('✅ Step 1: OCR & Translation complete. Starting Step 2: Validation & 5W1H extraction...');
+    res.write(JSON.stringify({ status: 'progress', message: 'Step 2: Validating petition & extracting 5W1H details...' }) + '\n');
 
-    console.log('✅ Analysis complete.');
-    res.json(jsonResult);
+    // Step 2: Validation & 5W1H Extraction
+    const validationResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        prompts.VALIDATE_PETITION_PROMPT,
+        step1Result.english_translation
+      ],
+      config: {
+        responseMimeType: 'application/json'
+      }
+    });
+
+    const finalResult = JSON.parse(validationResponse.text);
+
+    console.log('✅ Step 2: Validation complete.');
+
+    res.write(JSON.stringify({
+      status: 'complete',
+      step1: step1Result,
+      step2: finalResult
+    }) + '\n');
+    res.end();
 
   } catch (error) {
     console.error('❌ Error during AI analysis:', error);
-    res.status(500).json({ error: 'Failed to analyze the petition', details: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to analyze the petition', details: error.message });
+    } else {
+      res.write(JSON.stringify({ status: 'error', message: error.message }) + '\n');
+      res.end();
+    }
   }
 });
 
