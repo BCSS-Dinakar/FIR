@@ -50,8 +50,25 @@ const generateOllamaVision = async (prompt, images, model = 'llava') => {
   }
 };
 
+/**
+ * Generates vector embeddings for the given text using an Ollama embedding model.
+ */
+const generateOllamaEmbedding = async (prompt, model = 'nomic-embed-text') => {
+  try {
+    const response = await axios.post(`${OLLAMA_URL}/api/embeddings`, {
+      model: model,
+      prompt: prompt,
+      keep_alive: '5m'
+    });
+    return response.data.embedding;
+  } catch (error) {
+    throw new Error(`Ollama Embedding API error: ${error.response?.status || error.message}`);
+  }
+};
+
 module.exports = {
   checkOllamaConnection,
   generateOllamaText,
-  generateOllamaVision
+  generateOllamaVision,
+  generateOllamaEmbedding
 };
