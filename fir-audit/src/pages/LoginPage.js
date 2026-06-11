@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import FIRButton from '../components/reusable/FIRButton';
+import { registerUser, loginUser, checkMe } from '../api/auth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -14,16 +16,28 @@ export default function LoginPage() {
     localStorage.setItem('theme', JSON.stringify(dark));
   }, [dark]);
 
-  // Clean logged out state
+  // Check if session is already active on mount
   useEffect(() => {
-    localStorage.removeItem('logged_in_officer');
-  }, []);
+    const verifySession = async () => {
+      try {
+        const data = await checkMe();
+        if (data && data.success && data.user) {
+          navigate('/dashboard');
+        }
+      } catch (err) {
+        localStorage.removeItem('logged_in_officer');
+      }
+    };
+    verifySession();
+  }, [navigate]);
 
   const [email, setEmail] = useState('officer.shiva@telanganapolice.gov.in');
   const [password, setPassword] = useState('AuditPass2026!');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [activeForm, setActiveForm] = useState('login'); 
+  const [activeForm, setActiveForm] = useState(() => {
+    return location.state?.tab === 'register' ? 'register' : 'login';
+  }); 
 
   // Registration States
   const [regName, setRegName] = useState('');
@@ -39,6 +53,7 @@ export default function LoginPage() {
   // Status/Validation States
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const T = {
     bg:     (d) => d ? 'bg-brand-navy-950 text-white' : 'bg-brand-slate-50 text-brand-charcoal',
@@ -49,49 +64,31 @@ export default function LoginPage() {
     accentLight: 'text-blue-600 hover:text-blue-700 transition-colors',
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+    setLoading(true);
 
-    // Default account check
-    if (email === 'officer.shiva@telanganapolice.gov.in' && password === 'AuditPass2026!') {
-      const defaultUser = {
-        name: 'Insp. K. Shiva Kumar',
-        badge: 'TS-9923',
-        email: 'officer.shiva@telanganapolice.gov.in',
-        rank: 'Inspector',
-        mobile: '9876543210',
-        state: 'Telangana',
-        district: 'Hyderabad',
-        station: 'PS/HYD/04'
-      };
-      localStorage.setItem('logged_in_officer', JSON.stringify(defaultUser));
-      navigate('/dashboard');
-      return;
-    }
+    try {
+      const data = await loginUser({ email, password });
 
-    // Check custom registered officers
-    const saved = localStorage.getItem('registered_officers');
-    let officers = [];
-    if (saved) {
-      try {
-        officers = JSON.parse(saved);
-      } catch (err) {
-        officers = [];
+      if (data && data.success) {
+        navigate('/dashboard');
+        return;
+      } else {
+        setErrorMsg((data && data.message) || 'Authentication failed');
       }
-    }
-
-    const found = officers.find(o => o.email.toLowerCase() === email.toLowerCase() && o.password === password);
-    if (found) {
-      localStorage.setItem('logged_in_officer', JSON.stringify(found));
-      navigate('/dashboard');
-    } else {
-      setErrorMsg('Invalid government credentials. Please check your details or register a new officer.');
+    } catch (err) {
+      console.error('Login connection error:', err);
+      const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Authentication error';
+      setErrorMsg(apiMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -111,57 +108,131 @@ export default function LoginPage() {
       return;
     }
 
-    const newOfficer = {
-      name: regName,
-      badge: regBadge,
-      email: regEmail,
-      password: regPassword,
-      rank: 'Inspector', // default fallback designation
-      mobile: regMobile,
-      state: 'Telangana', // default fallback state
-      district: 'Hyderabad', // default fallback district
-      station: regStation
-    };
+    setLoading(true);
+    try {
+      const data = await registerUser({
+        name: regName,
+        badge: regBadge,
+        email: regEmail,
+        password: regPassword,
+        mobile: regMobile,
+        station: regStation
+      });
 
-    const saved = localStorage.getItem('registered_officers');
-    let officers = [];
-    if (saved) {
-      try {
-        officers = JSON.parse(saved);
-      } catch (err) {
-        officers = [];
+      if (data && data.success) {
+        // Fill sign-in fields automatically
+        setEmail(regEmail);
+        setPassword(regPassword);
+
+        // Reset fields
+        setRegName('');
+        setRegBadge('');
+        setRegEmail('');
+        setRegPassword('');
+        setRegConfirmPassword('');
+        setShowRegPassword(false);
+        setShowRegConfirmPassword(false);
+        setRegMobile('');
+        setRegStation('');
+
+        setSuccessMsg(data.message || `Officer Account for ${regName} created successfully! Please login below.`);
+        setActiveForm('login');
+      } else {
+        setErrorMsg((data && data.message) || 'Registration failed');
       }
+    } catch (err) {
+      console.error('Registration connection error:', err);
+      const apiMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Registration error';
+      setErrorMsg(apiMessage);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (officers.some(o => o.email.toLowerCase() === regEmail.toLowerCase())) {
-      setErrorMsg('An officer is already registered with this email.');
-      return;
-    }
+  const renderError = () => {
+    if (!errorMsg) return null;
+    return (
+      <div className={`p-4 mb-6 rounded-2xl border flex items-start gap-3 animate-shake backdrop-blur-md shadow-lg transition-all ${
+        dark 
+          ? 'bg-rose-500/10 border-rose-500/30 text-rose-200 shadow-rose-500/5' 
+          : 'bg-rose-50/80 border-rose-200/80 text-rose-900 shadow-rose-900/5'
+      }`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+          dark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-600'
+        }`}>
+          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div className="flex-1 pt-0.5">
+          <span className="block text-xs font-bold uppercase tracking-wider mb-0.5">
+            Error Alert
+          </span>
+          <p className="text-xs font-medium opacity-90 leading-relaxed">
+            {errorMsg}
+          </p>
+        </div>
+        <button 
+          type="button"
+          onClick={() => setErrorMsg('')}
+          className="text-gray-400 hover:text-gray-500 transition-colors p-1 shrink-0"
+        >
+          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    );
+  };
 
-    officers.push(newOfficer);
-    localStorage.setItem('registered_officers', JSON.stringify(officers));
-
-    // Fill sign-in fields automatically
-    setEmail(regEmail);
-    setPassword(regPassword);
-
-    // Reset fields
-    setRegName('');
-    setRegBadge('');
-    setRegEmail('');
-    setRegPassword('');
-    setRegConfirmPassword('');
-    setShowRegPassword(false);
-    setShowRegConfirmPassword(false);
-    setRegMobile('');
-    setRegStation('');
-
-    setSuccessMsg(`Officer Account for ${regName} created successfully! Please login below.`);
-    setActiveForm('login');
+  const renderSuccess = () => {
+    if (!successMsg) return null;
+    return (
+      <div className={`p-4 mb-6 rounded-2xl border flex items-start gap-3 animate-in fade-in duration-300 backdrop-blur-md shadow-lg transition-all ${
+        dark 
+          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 shadow-emerald-500/5' 
+          : 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900 shadow-emerald-900/5'
+      }`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+          dark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-600'
+        }`}>
+          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0" />
+          </svg>
+        </div>
+        <div className="flex-1 pt-0.5">
+          <span className="block text-xs font-bold uppercase tracking-wider mb-0.5">
+            Success Confirmation
+          </span>
+          <p className="text-xs font-medium opacity-90 leading-relaxed">
+            {successMsg}
+          </p>
+        </div>
+        <button 
+          type="button"
+          onClick={() => setSuccessMsg('')}
+          className="text-gray-400 hover:text-gray-500 transition-colors p-1 shrink-0"
+        >
+          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    );
   };
 
   return (
     <div className={`min-h-screen flex transition-colors duration-500 ${T.bg(dark)}`}>
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-6px); }
+          40%, 80% { transform: translateX(6px); }
+        }
+        .animate-shake {
+          animation: shake 0.4s ease-in-out;
+        }
+      `}</style>
       
       {/* Dynamic Background Glows */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
@@ -244,28 +315,6 @@ export default function LoginPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none" />
 
         <div className="w-full max-w-md relative z-10">
-
-          {successMsg && (
-            <div className={`p-4 mb-5 rounded-2xl border text-xs flex items-start gap-3 animate-in fade-in duration-300 ${
-              dark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-100 text-emerald-800'
-            }`}>
-              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0" />
-              </svg>
-              <span>{successMsg}</span>
-            </div>
-          )}
-
-          {errorMsg && (
-            <div className={`p-4 mb-5 rounded-2xl border text-xs flex items-start gap-3 animate-in fade-in duration-300 ${
-              dark ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-rose-50 border-rose-100 text-rose-800'
-            }`}>
-              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span>{errorMsg}</span>
-            </div>
-          )}
           
           <div key={activeForm} className="animate-in slide-in-from-right-8 fade-in duration-500 fill-mode-both">
             
@@ -280,6 +329,9 @@ export default function LoginPage() {
                     Access the compliance dashboard
                   </p>
                 </div>
+
+                {renderSuccess()}
+                {renderError()}
 
                 <form onSubmit={handleLogin} className="space-y-5">
                   <div>
@@ -367,14 +419,27 @@ export default function LoginPage() {
 
                   <button
                     type="submit"
-                    className="w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-4 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-4"
+                    disabled={loading}
+                    className={`w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-4 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-4 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
                     <div className="relative flex items-center justify-center gap-2">
-                      Sign In Securely
-                      <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
+                      {loading ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Signing In...
+                        </>
+                      ) : (
+                        <>
+                          Sign In Securely
+                          <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        </>
+                      )}
                     </div>
                   </button>
                 </form>
@@ -402,6 +467,8 @@ export default function LoginPage() {
                     Create your secure credentials
                   </p>
                 </div>
+
+                {renderError()}
 
                 <form onSubmit={handleRegister} className="space-y-3">
                   <div>
@@ -518,9 +585,25 @@ export default function LoginPage() {
                     </div>
                   </div>
                   
-                  <button type="submit" className="w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-3 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-4">
+                  <button 
+                    type="submit" 
+                    disabled={loading} 
+                    className={`w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-3 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-4 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  >
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
-                    <span className="relative">Create Account</span>
+                    <div className="relative flex items-center justify-center gap-2">
+                      {loading ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Creating Account...
+                        </>
+                      ) : (
+                        <span>Create Account</span>
+                      )}
+                    </div>
                   </button>
                 </form>
 
@@ -544,6 +627,8 @@ export default function LoginPage() {
                     We will send a reset link to your gov email
                   </p>
                 </div>
+
+                {renderError()}
 
                 <form onSubmit={(e) => { e.preventDefault(); alert('Reset link sent!'); setActiveForm('login'); }} className="space-y-4">
                   <div>
@@ -576,6 +661,8 @@ export default function LoginPage() {
                     Enter your badge number to locate your ID
                   </p>
                 </div>
+
+                {renderError()}
 
                 <form onSubmit={(e) => { e.preventDefault(); alert('Account found: officer.shiva@...'); setActiveForm('login'); }} className="space-y-4">
                   <div>

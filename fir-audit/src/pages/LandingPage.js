@@ -191,7 +191,7 @@ export default function LandingPage() {
             {dark ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-9H21M3 12H2m15.36-6.36l-.71.71M6.34 17.66l-.71.71M17.66 17.66l-.71-.71M6.34 6.34l-.71-.71M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>}
           </button>
           <FIRButton variant="secondary" dark={dark} className="px-5 font-bold" onClick={() => navigate('/login')}>Sign In</FIRButton>
-          <button onClick={() => navigate('/register')} className="relative group overflow-hidden rounded-xl bg-blue-600 text-white font-bold px-6 py-2.5 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300">
+          <button onClick={() => navigate('/login', { state: { tab: 'register' } })} className="relative group overflow-hidden rounded-xl bg-blue-600 text-white font-bold px-6 py-2.5 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
             <span className="relative">Start Free Audit</span>
           </button>
@@ -211,7 +211,7 @@ export default function LandingPage() {
             Upload a complaint. AI reads it, fills the official FIR, audits every legal section under BNS & BNSS, and blocks errors before they cost you the case.
           </p>
           <div className="flex flex-wrap gap-4 mb-14">
-            <button onClick={() => navigate('/register')} className="relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold px-8 py-4 text-base shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)] transition-all duration-300">
+            <button onClick={() => navigate('/login', { state: { tab: 'register' } })} className="relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold px-8 py-4 text-base shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)] transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
               <div className="relative flex items-center justify-center gap-2">
                 Start Free Audit

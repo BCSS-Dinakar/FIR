@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { logoutUser } from '../api/auth';
 
 const navGroups = [
   {
@@ -275,7 +276,12 @@ export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, 
 
         {/* Sign Out button */}
         <button
-          onClick={() => {
+          onClick={async () => {
+            try {
+              await logoutUser();
+            } catch (err) {
+              console.error('Logout error:', err);
+            }
             localStorage.removeItem('logged_in_officer');
             navigate('/login');
           }}
