@@ -1,8 +1,66 @@
 import FIRButton from '../components/reusable/FIRButton';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) {
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const [officer, setOfficer] = useState(() => {
+    const saved = localStorage.getItem('logged_in_officer');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return {
+      name: 'Insp. K. Shiva Kumar',
+      badge: 'TS-9923',
+      rank: 'Inspector',
+      station: 'PS/HYD/04'
+    };
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('logged_in_officer');
+      if (saved) {
+        try {
+          setOfficer(JSON.parse(saved));
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const getInitials = (name) => {
+    if (!name) return 'KS';
+    const parts = name.replace(/^(Insp\.|Sub-Insp\.|Asst\.|Insp|SI|ASI|DSP|Constable)\.?\s+/i, '').split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0] ? parts[0].substring(0, 2).toUpperCase() : 'KS';
+  };
+
+  const formatRankName = (rank, name) => {
+    if (name.includes('Insp.') || name.includes('Sub-Insp.') || name.includes('SI ') || name.includes('ASI ') || name.includes('DSP ')) {
+      return name;
+    }
+    const rankPrefixes = {
+      'Inspector': 'Insp. ',
+      'Sub-Inspector': 'SI ',
+      'Assistant Sub-Inspector': 'ASI ',
+      'DSP': 'DSP ',
+      'Constable': 'PC '
+    };
+    return (rankPrefixes[rank] || '') + name;
+  };
+
+  const initials = getInitials(officer.name);
+  const displayName = formatRankName(officer.rank, officer.name);
   return (
     <header className={`sticky top-0 z-30 border-b flex items-center justify-between px-5 py-3 transition-colors duration-300 ${T.header(dark)}`}>
 
@@ -196,13 +254,13 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
         <div className="flex items-center gap-2.5 cursor-pointer group">
           {/* Avatar */}
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-black text-[10px] shadow-sm shadow-blue-500/20 shrink-0 group-hover:shadow-blue-500/40 transition-all">
-            KS
+            {initials}
           </div>
 
           {/* Name + shift */}
           <div className="hidden sm:block leading-none">
             <div className="text-[11px] font-black group-hover:text-blue-500 transition-colors">
-              Insp. K. Shiva Kumar
+              {displayName}
             </div>
             <div className="flex items-center gap-1 mt-0.5">
               <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm ${
@@ -210,7 +268,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
               }`}>
                 Day Shift
               </span>
-              <span className={`text-[9px] ${dark ? 'text-white/30' : 'text-black/30'}`}>· PS/HYD/04</span>
+              <span className={`text-[9px] ${dark ? 'text-white/30' : 'text-black/30'}`}>· {officer.station}</span>
             </div>
           </div>
 

@@ -14,11 +14,31 @@ export default function LoginPage() {
     localStorage.setItem('theme', JSON.stringify(dark));
   }, [dark]);
 
+  // Clean logged out state
+  useEffect(() => {
+    localStorage.removeItem('logged_in_officer');
+  }, []);
+
   const [email, setEmail] = useState('officer.shiva@telanganapolice.gov.in');
   const [password, setPassword] = useState('AuditPass2026!');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [activeForm, setActiveForm] = useState('login'); 
+
+  // Registration States
+  const [regName, setRegName] = useState('');
+  const [regBadge, setRegBadge] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
+  const [regMobile, setRegMobile] = useState('');
+  const [regStation, setRegStation] = useState('');
+
+  // Status/Validation States
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const T = {
     bg:     (d) => d ? 'bg-brand-navy-950 text-white' : 'bg-brand-slate-50 text-brand-charcoal',
@@ -31,7 +51,113 @@ export default function LoginPage() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    // Default account check
+    if (email === 'officer.shiva@telanganapolice.gov.in' && password === 'AuditPass2026!') {
+      const defaultUser = {
+        name: 'Insp. K. Shiva Kumar',
+        badge: 'TS-9923',
+        email: 'officer.shiva@telanganapolice.gov.in',
+        rank: 'Inspector',
+        mobile: '9876543210',
+        state: 'Telangana',
+        district: 'Hyderabad',
+        station: 'PS/HYD/04'
+      };
+      localStorage.setItem('logged_in_officer', JSON.stringify(defaultUser));
+      navigate('/dashboard');
+      return;
+    }
+
+    // Check custom registered officers
+    const saved = localStorage.getItem('registered_officers');
+    let officers = [];
+    if (saved) {
+      try {
+        officers = JSON.parse(saved);
+      } catch (err) {
+        officers = [];
+      }
+    }
+
+    const found = officers.find(o => o.email.toLowerCase() === email.toLowerCase() && o.password === password);
+    if (found) {
+      localStorage.setItem('logged_in_officer', JSON.stringify(found));
+      navigate('/dashboard');
+    } else {
+      setErrorMsg('Invalid government credentials. Please check your details or register a new officer.');
+    }
+  };
+
+  const handleRegister = (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!regEmail.toLowerCase().endsWith('.gov.in')) {
+      setErrorMsg('Only secure government emails ending in .gov.in are allowed.');
+      return;
+    }
+
+    if (!/^\d{10}$/.test(regMobile)) {
+      setErrorMsg('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    if (regPassword !== regConfirmPassword) {
+      setErrorMsg('Passwords do not match. Please verify.');
+      return;
+    }
+
+    const newOfficer = {
+      name: regName,
+      badge: regBadge,
+      email: regEmail,
+      password: regPassword,
+      rank: 'Inspector', // default fallback designation
+      mobile: regMobile,
+      state: 'Telangana', // default fallback state
+      district: 'Hyderabad', // default fallback district
+      station: regStation
+    };
+
+    const saved = localStorage.getItem('registered_officers');
+    let officers = [];
+    if (saved) {
+      try {
+        officers = JSON.parse(saved);
+      } catch (err) {
+        officers = [];
+      }
+    }
+
+    if (officers.some(o => o.email.toLowerCase() === regEmail.toLowerCase())) {
+      setErrorMsg('An officer is already registered with this email.');
+      return;
+    }
+
+    officers.push(newOfficer);
+    localStorage.setItem('registered_officers', JSON.stringify(officers));
+
+    // Fill sign-in fields automatically
+    setEmail(regEmail);
+    setPassword(regPassword);
+
+    // Reset fields
+    setRegName('');
+    setRegBadge('');
+    setRegEmail('');
+    setRegPassword('');
+    setRegConfirmPassword('');
+    setShowRegPassword(false);
+    setShowRegConfirmPassword(false);
+    setRegMobile('');
+    setRegStation('');
+
+    setSuccessMsg(`Officer Account for ${regName} created successfully! Please login below.`);
+    setActiveForm('login');
   };
 
   return (
@@ -118,6 +244,28 @@ export default function LoginPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none" />
 
         <div className="w-full max-w-md relative z-10">
+
+          {successMsg && (
+            <div className={`p-4 mb-5 rounded-2xl border text-xs flex items-start gap-3 animate-in fade-in duration-300 ${
+              dark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-100 text-emerald-800'
+            }`}>
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0" />
+              </svg>
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className={`p-4 mb-5 rounded-2xl border text-xs flex items-start gap-3 animate-in fade-in duration-300 ${
+              dark ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-rose-50 border-rose-100 text-rose-800'
+            }`}>
+              <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{errorMsg}</span>
+            </div>
+          )}
           
           <div key={activeForm} className="animate-in slide-in-from-right-8 fade-in duration-500 fill-mode-both">
             
@@ -246,34 +394,131 @@ export default function LoginPage() {
             {/* ── CREATE ACCOUNT FORM ── */}
             {activeForm === 'register' && (
               <>
-                <div className="mb-10 text-center">
-                  <h1 className="text-3xl font-black tracking-tight mb-2">
+                <div className="mb-4 text-center">
+                  <h1 className="text-2xl font-black tracking-tight mb-1">
                     Register Officer
                   </h1>
-                  <p className={`text-sm ${T.muted(dark)}`}>
+                  <p className={`text-xs ${T.muted(dark)}`}>
                     Create your secure credentials
                   </p>
                 </div>
 
-                <form onSubmit={(e) => { e.preventDefault(); setActiveForm('login'); }} className="space-y-4">
+                <form onSubmit={handleRegister} className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-2 ml-1">Full Name</label>
-                    <input type="text" required placeholder="e.g. Insp. Shiva Kumar" className={`w-full px-5 py-4 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`} />
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1 ml-1">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Insp. Shiva Kumar"
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      className={`w-full px-5 py-2.5 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`}
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-2 ml-1">Badge Number</label>
-                    <input type="text" required placeholder="e.g. TS-9923" className={`w-full px-5 py-4 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`} />
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1 ml-1">Badge Number</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. TS-9923"
+                      value={regBadge}
+                      onChange={(e) => setRegBadge(e.target.value)}
+                      className={`w-full px-5 py-2.5 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`}
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-2 ml-1">Gov Email</label>
-                    <input type="email" required placeholder="name@policestate.gov.in" className={`w-full px-5 py-4 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`} />
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1 ml-1">Gov Email</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="name@policestate.gov.in"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      className={`w-full px-5 py-2.5 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`}
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider mb-2 ml-1">Password</label>
-                    <input type="password" required placeholder="Create a secure password" className={`w-full px-5 py-4 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`} />
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1 ml-1">Mobile No</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 9876543210"
+                      value={regMobile}
+                      onChange={(e) => setRegMobile(e.target.value)}
+                      className={`w-full px-5 py-2.5 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1 ml-1">Police Station / PS Code</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. PS/HYD/04"
+                      value={regStation}
+                      onChange={(e) => setRegStation(e.target.value)}
+                      className={`w-full px-5 py-2.5 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1 ml-1">Password</label>
+                    <div className="relative">
+                      <input
+                        type={showRegPassword ? "text" : "password"}
+                        required
+                        placeholder="Create secure password"
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        className={`w-full pl-5 pr-12 py-2.5 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500 transition-colors p-1"
+                      >
+                        {showRegPassword ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 01-2.25 3.65m3.431-1.393A9.903 9.903 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-2.25 3.65m-3.431 1.393M9 11l5 5M12 12l.01-.01" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-1 ml-1">Confirm Password</label>
+                    <div className="relative">
+                      <input
+                        type={showRegConfirmPassword ? "text" : "password"}
+                        required
+                        placeholder="Verify secure password"
+                        value={regConfirmPassword}
+                        onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        className={`w-full pl-5 pr-12 py-2.5 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500 transition-colors p-1"
+                      >
+                        {showRegConfirmPassword ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 01-2.25 3.65m3.431-1.393A9.903 9.903 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-2.25 3.65m-3.431 1.393M9 11l5 5M12 12l.01-.01" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   
-                  <button type="submit" className="w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-4 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-6">
+                  <button type="submit" className="w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-3 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-4">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
                     <span className="relative">Create Account</span>
                   </button>

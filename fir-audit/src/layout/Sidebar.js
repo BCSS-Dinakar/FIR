@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const navGroups = [
@@ -88,6 +89,64 @@ const navGroups = [
 export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, T }) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [officer, setOfficer] = useState(() => {
+    const saved = localStorage.getItem('logged_in_officer');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return {
+      name: 'Insp. K. Shiva Kumar',
+      badge: 'TS-9923',
+      rank: 'Inspector',
+      station: 'PS/HYD/04'
+    };
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('logged_in_officer');
+      if (saved) {
+        try {
+          setOfficer(JSON.parse(saved));
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const getInitials = (name) => {
+    if (!name) return 'KS';
+    const parts = name.replace(/^(Insp\.|Sub-Insp\.|Asst\.|Insp|SI|ASI|DSP|Constable)\.?\s+/i, '').split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0] ? parts[0].substring(0, 2).toUpperCase() : 'KS';
+  };
+
+  const formatRankName = (rank, name) => {
+    if (name.includes('Insp.') || name.includes('Sub-Insp.') || name.includes('SI ') || name.includes('ASI ') || name.includes('DSP ')) {
+      return name;
+    }
+    const rankPrefixes = {
+      'Inspector': 'Insp. ',
+      'Sub-Inspector': 'SI ',
+      'Assistant Sub-Inspector': 'ASI ',
+      'DSP': 'DSP ',
+      'Constable': 'PC '
+    };
+    return (rankPrefixes[rank] || '') + name;
+  };
+
+  const initials = getInitials(officer.name);
+  const displayName = formatRankName(officer.rank, officer.name);
 
   const isActive = (path) => {
     if (path === '/dashboard') return location.pathname === '/dashboard';
@@ -192,13 +251,13 @@ export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, 
           /* Expanded: full card with name and duty info */
           <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${dark ? 'bg-white/[0.03]' : 'bg-black/[0.02]'}`}>
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-[11px] shrink-0 shadow-sm shadow-blue-500/20">
-              KS
+              {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-black truncate">Insp. K. Shiva Kumar</div>
+              <div className="text-[11px] font-black truncate">{displayName}</div>
               <div className="text-[9px] text-emerald-500 font-bold flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                On Duty · PS/HYD/04
+                On Duty · {officer.station}
               </div>
             </div>
           </div>
@@ -206,17 +265,20 @@ export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, 
           /* Collapsed: just the avatar centred */
           <div className="flex justify-center py-1">
             <div
-              title="Insp. K. Shiva Kumar — On Duty"
+              title={`${displayName} — On Duty · ${officer.station}`}
               className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-[11px] shadow-sm shadow-blue-500/20"
             >
-              KS
+              {initials}
             </div>
           </div>
         )}
 
         {/* Sign Out button */}
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => {
+            localStorage.removeItem('logged_in_officer');
+            navigate('/login');
+          }}
           title={collapsed ? 'Sign Out' : undefined}
           className={`flex items-center w-full rounded-xl text-xs font-bold transition-all duration-200 ${
             collapsed ? 'justify-center p-3' : 'px-3 py-2.5 gap-3'
