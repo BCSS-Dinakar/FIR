@@ -1,39 +1,116 @@
 import { useOutletContext } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FIRBadge from '../components/reusable/FIRBadge';
 
-const INITIAL_BLOCKERS = [
-  { id: 'BLK-001', fir: 'FIR/HYD/226/103', section: 'BNS 115', issue: 'Forensic Lab ID missing from scene evidence log', severity: 'Critical', since: '2 hrs ago' },
-  { id: 'BLK-002', fir: 'FIR/HYD/226/099', section: 'BNS 103', issue: 'Witness attestation signature absent — mandatory under BNSS Sec 173', severity: 'Critical', since: '4 hrs ago' },
-  { id: 'BLK-003', fir: 'FIR/HYD/226/088', section: 'NDPS 20', issue: 'Narcotics seizure weight mismatch between complaint and panchnama', severity: 'High', since: '1 day ago' },
+const SEED_PETITIONS = [
+  {
+    id: 'PET-2026-001',
+    petitionNo: 'PET/HYD/2026/001',
+    date: 'Yesterday, 14:32',
+    complainant: 'K. Raghunath Prasad',
+    accused: 'G. Venkatesh & Partners',
+    sections: ['BNS 318 (Cheating)', 'BNS 336 (Forgery)'],
+    score: 94,
+    status: 'Pending Filing',
+    blockers: [],
+    sourceFile: 'complaint_raghunath_signed.pdf'
+  },
+  {
+    id: 'PET-2026-002',
+    petitionNo: 'PET/HYD/2026/002',
+    date: 'Yesterday, 10:15',
+    complainant: 'M. Sridevi',
+    accused: 'M. Rajender',
+    sections: ['BNS 84 (Dowry Harassment)'],
+    score: 68,
+    status: 'Pending Filing',
+    blockers: ['Victim statement date mismatch', 'No list of items attached'],
+    sourceFile: 'sridevi_complaint_scan.jpg'
+  },
+  {
+    id: 'PET-2026-003',
+    petitionNo: 'PET/HYD/2026/003',
+    date: '10 Jun 2026',
+    complainant: 'Syed Rahmathullah',
+    accused: 'Unknown intruder',
+    sections: ['BNS 303 (Theft)', 'BNS 331 (House-trespass)'],
+    score: 97,
+    status: 'FIR Filed',
+    firNo: 'FIR/HYD/226/104',
+    filedAt: '10 Jun 2026, 16:40',
+    blockers: [],
+    sourceFile: 'syed_theft_complaint.docx'
+  }
 ];
-
 
 export default function FIRBlockers() {
   const { dark } = useOutletContext();
 
-  const [blockers, setBlockers] = useState(INITIAL_BLOCKERS);
+  const [petitions, setPetitions] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(2);
   const [resolvingBlocker, setResolvingBlocker] = useState(null); // Tracks which blocker is being resolved
+
+  // Load from localStorage or seed on mount
+  useEffect(() => {
+    const data = localStorage.getItem('scanned_petitions');
+    if (data) {
+      setPetitions(JSON.parse(data));
+    } else {
+      localStorage.setItem('scanned_petitions', JSON.stringify(SEED_PETITIONS));
+      setPetitions(SEED_PETITIONS);
+    }
+  }, []);
+
+  // Compute active blockers dynamically from scanned petitions
+  const activeBlockers = [];
+  petitions.forEach(p => {
+    if (p.blockers && p.blockers.length > 0) {
+      p.blockers.forEach((blocker, index) => {
+        activeBlockers.push({
+          id: `${p.id}-BLK-${index}`,
+          petitionId: p.id,
+          fir: p.petitionNo,
+          section: p.sections[0] || 'N/A',
+          issue: blocker,
+          severity: index === 0 ? 'Critical' : 'High',
+          since: p.date
+        });
+      });
+    }
+  });
   
-  const totalPages = Math.max(1, Math.ceil(blockers.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(activeBlockers.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentBlockers = blockers.slice(startIndex, startIndex + itemsPerPage);
+  const currentBlockers = activeBlockers.slice(startIndex, startIndex + itemsPerPage);
 
   const confirmResolve = (e) => {
     e.preventDefault();
     if (!resolvingBlocker) return;
     
-    setBlockers(prev => {
-      const next = prev.filter(b => b.id !== resolvingBlocker.id);
-      if (currentPage > Math.max(1, Math.ceil(next.length / itemsPerPage))) {
-        setCurrentPage(Math.max(1, Math.ceil(next.length / itemsPerPage)));
+    const updated = petitions.map(p => {
+      if (p.id === resolvingBlocker.petitionId) {
+        const remainingBlockers = p.blockers.filter(b => b !== resolvingBlocker.issue);
+        return {
+          ...p,
+          blockers: remainingBlockers,
+          score: remainingBlockers.length === 0 ? 95 : p.score // Boost score once fully cleared
+        };
       }
-      return next;
+      return p;
     });
+
+    localStorage.setItem('scanned_petitions', JSON.stringify(updated));
+    setPetitions(updated);
+    
+    // Adjust page index if necessary
+    const newBlockerCount = activeBlockers.length - 1;
+    const maxPage = Math.max(1, Math.ceil(newBlockerCount / itemsPerPage));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
     
     setResolvingBlocker(null);
   };
@@ -59,14 +136,14 @@ export default function FIRBlockers() {
       <div>
         <h1 className="text-2xl font-black tracking-tight mb-1">Blocker Flags</h1>
         <p className={`text-xs ${T.muted(dark)}`}>
-          Procedural errors and compliance failures blocking FIR PDF generation. Resolve all blockers before court submission.
+          Procedural errors and compliance failures blocking FIR registration. Resolve all blockers before filing.
         </p>
       </div>
 
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
-          { label: 'Active Blockers', val: '3', color: 'text-red-500', sub: 'PDF locked until resolved' },
+          { label: 'Active Blockers', val: activeBlockers.length.toString(), color: 'text-red-500', sub: 'Filing locked until resolved' },
           { label: 'Avg. Resolution Time', val: '47 min', color: 'text-amber-500', sub: 'This week' },
           { label: 'Resolved Today', val: '11', color: 'text-emerald-500', sub: 'Since 08:00 hrs' },
         ].map((s) => (
@@ -82,8 +159,8 @@ export default function FIRBlockers() {
       <FIRCard dark={dark} noPadding className="overflow-hidden">
         <div className={`px-5 py-3.5 border-b ${T.border(dark)} flex items-center justify-between`}>
           <h3 className="text-xs font-black uppercase tracking-wider">Active Blockers Requiring Resolution</h3>
-          {blockers.length > 0 ? (
-            <span className="text-[10px] text-red-500 font-bold animate-pulse">● {blockers.length} Unresolved</span>
+          {activeBlockers.length > 0 ? (
+            <span className="text-[10px] text-red-500 font-bold animate-pulse">● {activeBlockers.length} Unresolved</span>
           ) : (
             <span className="text-[10px] text-emerald-500 font-bold">All Resolved</span>
           )}
@@ -121,7 +198,7 @@ export default function FIRBlockers() {
         {/* Pagination */}
         <div className={`px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t ${T.border(dark)}`}>
           <div className="flex items-center gap-3">
-            <span className={`text-[11px] ${T.muted(dark)}`}>Showing {blockers.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + itemsPerPage, blockers.length)} of {blockers.length} blockers</span>
+            <span className={`text-[11px] ${T.muted(dark)}`}>Showing {activeBlockers.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + itemsPerPage, activeBlockers.length)} of {activeBlockers.length} blockers</span>
             <select 
               value={itemsPerPage} 
               onChange={handleItemsPerPageChange}

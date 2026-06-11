@@ -62,7 +62,7 @@ export default function FIROverview() {
             Auditing Command Center
           </h1>
           <p className={`text-xs ${T.muted(dark)}`}>
-            Real-time compliance validation and procedural scoring of police complaints.
+            Real-time compliance validation and procedural scoring of police petitions.
           </p>
         </div>
         <FIRButton 
@@ -74,7 +74,7 @@ export default function FIROverview() {
             </svg>
           }
         >
-          Upload New Complaint
+          Upload New Petition
         </FIRButton>
       </div>
 
@@ -82,7 +82,7 @@ export default function FIROverview() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { 
-            title: 'Complaints Audited', 
+            title: 'Petitions Audited', 
             val: '1,482', 
             change: '+14% this month',
             icon: (
@@ -154,8 +154,8 @@ export default function FIROverview() {
             </svg>
           </div>
           <div className="text-left">
-            <h3 className="font-bold text-sm">Drag and drop complaints to run automated compliance checks</h3>
-            <p className={`text-xs mt-0.5 ${T.muted(dark)}`}>Supports Telugu/English handwritten complaints, printed PDFs, or images (JPG, PNG).</p>
+            <h3 className="font-bold text-sm">Drag and drop petitions to run automated compliance checks</h3>
+            <p className={`text-xs mt-0.5 ${T.muted(dark)}`}>Supports Telugu/English handwritten petitions, printed PDFs, or images (JPG, PNG).</p>
           </div>
         </div>
 
@@ -165,7 +165,7 @@ export default function FIROverview() {
           dark={dark}
           className="relative z-10 shrink-0"
         >
-          Select Complaint File
+          Select Petition File
         </FIRButton>
       </FIRCard>
 
@@ -174,7 +174,7 @@ export default function FIROverview() {
         <div className={`px-6 py-4 border-b ${T.border(dark)} flex items-center justify-between`}>
           <div>
             <h3 className="font-bold text-sm">Recent Audit Queue</h3>
-            <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>A timeline of complaints processed in the last 24 hours.</p>
+            <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>A timeline of petitions processed in the last 24 hours.</p>
           </div>
         </div>
 

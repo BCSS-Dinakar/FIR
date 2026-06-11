@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
@@ -14,34 +14,23 @@ const SAMPLE_FILES = [
 ];
 
 const PROCESSING_STEPS = [
-  { id: 1, label: 'Reading document via Gemini Vision OCR',       icon: '👁️' },
-  { id: 2, label: 'Extracting complainant & accused details',      icon: '📋' },
-  { id: 3, label: 'Mapping facts to BNS / IPC sections',          icon: '⚖️' },
-  { id: 4, label: 'Running BNSS procedural compliance check',     icon: '🔍' },
-  { id: 5, label: 'Scoring compliance & generating blocker list', icon: '📊' },
+  { id: 1, label: 'Scanning file content', icon: '👁️' },
+  { id: 2, label: 'Changing to english',   icon: '🔤' },
+  { id: 3, label: 'Validating petition',   icon: '⚖️' },
 ];
 
-const MOCK_RESULT = {
-  firNo:       'FIR/HYD/226/107',
-  complainant: 'Ravi Kumar Sharma',
-  accused:     'Unknown (2 persons)',
-  sections:    ['BNS 318 (Cheating)', 'BNS 120B (Criminal Conspiracy)'],
-  score:       87,
-  blockers: [
-    'Forensic Lab ID not attached to evidence log',
-    'Date of occurrence not in DD/MM/YYYY format',
-  ],
-  status: 'Needs Review',
-};
+
 
 export default function FIRAudits() {
   const { dark } = useOutletContext();
+  const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
   const [dragActive, setDragActive]     = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [stage, setStage]               = useState('idle'); // idle | processing | done
   const [doneStep, setDoneStep]         = useState(0);
+  const [lastScannedPetition, setLastScannedPetition] = useState(null);
 
   const T = {
     card:    (d) => d ? 'bg-brand-navy-900 border-white/[0.06]' : 'bg-white border-black/[0.08] shadow-sm',
@@ -86,7 +75,85 @@ export default function FIRAudits() {
       setTimeout(() => {
         setDoneStep(i + 1);
         if (i === PROCESSING_STEPS.length - 1) {
-          setTimeout(() => setStage('done'), 500);
+          setTimeout(() => {
+            // Save scanned report to localStorage
+            const currentData = localStorage.getItem('scanned_petitions');
+            let list = [];
+            
+            const SEED_PETITIONS = [
+              {
+                id: 'PET-2026-001',
+                petitionNo: 'PET/HYD/2026/001',
+                date: 'Yesterday, 14:32',
+                complainant: 'K. Raghunath Prasad',
+                accused: 'G. Venkatesh & Partners',
+                sections: ['BNS 318 (Cheating)', 'BNS 336 (Forgery)'],
+                score: 94,
+                status: 'Pending Filing',
+                blockers: [],
+                sourceFile: 'complaint_raghunath_signed.pdf'
+              },
+              {
+                id: 'PET-2026-002',
+                petitionNo: 'PET/HYD/2026/002',
+                date: 'Yesterday, 10:15',
+                complainant: 'M. Sridevi',
+                accused: 'M. Rajender',
+                sections: ['BNS 84 (Dowry Harassment)'],
+                score: 68,
+                status: 'Pending Filing',
+                blockers: ['Victim statement date mismatch', 'No list of items attached'],
+                sourceFile: 'sridevi_complaint_scan.jpg'
+              },
+              {
+                id: 'PET-2026-003',
+                petitionNo: 'PET/HYD/2026/003',
+                date: '10 Jun 2026',
+                complainant: 'Syed Rahmathullah',
+                accused: 'Unknown intruder',
+                sections: ['BNS 303 (Theft)', 'BNS 331 (House-trespass)'],
+                score: 97,
+                status: 'FIR Filed',
+                firNo: 'FIR/HYD/226/104',
+                filedAt: '10 Jun 2026, 16:40',
+                blockers: [],
+                sourceFile: 'syed_theft_complaint.docx'
+              }
+            ];
+
+            if (currentData) {
+              list = JSON.parse(currentData);
+            } else {
+              list = SEED_PETITIONS;
+            }
+
+            const newId = `PET-2026-${Math.floor(100 + Math.random() * 900)}`;
+            const petNo = `PET/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
+            const isSample = selectedFile.name.includes('sample');
+            
+            const newPetition = {
+              id: newId,
+              petitionNo: petNo,
+              date: 'Just now',
+              complainant: isSample ? 'Ravi Kumar Sharma' : 'G. Laxman Rao',
+              accused: isSample ? 'Unknown (2 persons)' : 'K. Ramaswamy',
+              sections: isSample 
+                ? ['BNS 318 (Cheating)', 'BNS 120B (Criminal Conspiracy)'] 
+                : ['BNS 303 (Theft)'],
+              score: isSample ? 87 : 95,
+              status: 'Pending Filing',
+              blockers: isSample 
+                ? ['Forensic Lab ID not attached to evidence log', 'Date of occurrence not in DD/MM/YYYY format'] 
+                : [],
+              sourceFile: selectedFile.name
+            };
+
+            // Prepend new petition
+            list.unshift(newPetition);
+            localStorage.setItem('scanned_petitions', JSON.stringify(list));
+            setLastScannedPetition(newPetition);
+            setStage('done');
+          }, 500);
         }
       }, (i + 1) * 900);
     });
@@ -97,227 +164,7 @@ export default function FIRAudits() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const downloadReport = () => {
-    if (!selectedFile) return;
 
-    // Create a hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Audit Report - ${MOCK_RESULT.firNo}</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            padding: 40px;
-            color: #0f172a;
-            background: #ffffff;
-            line-height: 1.5;
-          }
-          .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 20px;
-            margin-bottom: 24px;
-          }
-          .title {
-            font-size: 24px;
-            font-weight: 800;
-            color: #1e3a8a;
-            margin: 0;
-          }
-          .subtitle {
-            font-size: 11px;
-            color: #64748b;
-            margin-top: 4px;
-            font-family: monospace;
-          }
-          .score-container {
-            text-align: right;
-          }
-          .score {
-            font-size: 32px;
-            font-weight: 900;
-            color: #d97706;
-          }
-          .score.good {
-            color: #059669;
-          }
-          .score.bad {
-            color: #dc2626;
-          }
-          .score-label {
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-            color: #64748b;
-            letter-spacing: 0.05em;
-          }
-          .section-title {
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #475569;
-            margin-top: 32px;
-            margin-bottom: 12px;
-            border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 6px;
-          }
-          .grid {
-            display: grid;
-            grid-template-cols: 1fr 1fr;
-            gap: 20px;
-          }
-          .field {
-            border-bottom: 1px solid #f1f5f9;
-            padding: 8px 0;
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-          }
-          .field-label {
-            color: #64748b;
-          }
-          .field-value {
-            font-weight: 700;
-          }
-          .badge-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 8px;
-          }
-          .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            font-size: 11px;
-            font-weight: 700;
-            background: #eff6ff;
-            color: #1d4ed8;
-            border: 1px solid #dbeafe;
-            border-radius: 8px;
-          }
-          .blockers-list {
-            margin-top: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-          }
-          .blocker {
-            display: flex;
-            gap: 12px;
-            background: #fef2f2;
-            border: 1px solid #fee2e2;
-            border-radius: 8px;
-            padding: 12px;
-            color: #991b1b;
-            font-size: 12px;
-            font-weight: 600;
-            align-items: flex-start;
-          }
-          .blocker-icon {
-            font-size: 14px;
-            margin-top: -1px;
-          }
-          .checklist {
-            margin-top: 8px;
-            font-size: 12px;
-            color: #475569;
-            padding-left: 20px;
-          }
-          .checklist li {
-            margin-bottom: 6px;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 60px;
-            font-size: 10px;
-            color: #94a3b8;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 16px;
-          }
-        </style>
-      </head>
-      <body>
-        <div>
-          <div class="header">
-            <div>
-              <h1 class="title">POLICE COMPLAINT COMPLIANCE AUDIT</h1>
-              <div class="subtitle">REF: ${MOCK_RESULT.firNo} &bull; DOC: ${selectedFile.name}</div>
-            </div>
-            <div class="score-container">
-              <div class="score ${MOCK_RESULT.score >= 90 ? 'good' : MOCK_RESULT.score >= 70 ? '' : 'bad'}">${MOCK_RESULT.score}/100</div>
-              <div class="score-label">${MOCK_RESULT.status}</div>
-            </div>
-          </div>
-
-          <div class="section-title">Audit Metadata</div>
-          <div class="grid">
-            <div>
-              <div class="field"><span class="field-label">FIR Reference Number</span><span class="field-value">${MOCK_RESULT.firNo}</span></div>
-              <div class="field"><span class="field-label">Complainant Name</span><span class="field-value">${MOCK_RESULT.complainant}</span></div>
-            </div>
-            <div>
-              <div class="field"><span class="field-label">Accused Details</span><span class="field-value">${MOCK_RESULT.accused}</span></div>
-              <div class="field"><span class="field-label">Audit Timestamp</span><span class="field-value">${new Date().toLocaleString()}</span></div>
-            </div>
-          </div>
-
-          <div class="section-title">Applied Legal Sections</div>
-          <div class="badge-container">
-            ${MOCK_RESULT.sections.map(s => `<span class="badge">${s}</span>`).join('')}
-          </div>
-
-          <div class="section-title">Procedural Blockers (${MOCK_RESULT.blockers.length})</div>
-          <div class="blockers-list">
-            ${MOCK_RESULT.blockers.length === 0 ? `
-              <div style="color: #059669; font-weight: 700; font-size: 13px;">No procedural blockers found. FIR is court-ready under BNSS guidelines.</div>
-            ` : MOCK_RESULT.blockers.map(b => `
-              <div class="blocker">
-                <span class="blocker-icon">⚠️</span>
-                <span>${b}</span>
-              </div>
-            `).join('')}
-          </div>
-
-          <div class="section-title">Standard BNSS Procedural Verification</div>
-          <ul class="checklist">
-            <li>Verify Sec 173 BNSS — FIR registration parameters (Status: Verified)</li>
-            <li>Complainant signature / thumb impression validation (Status: Completed)</li>
-            <li>Date of occurrence format validation (Status: Checked)</li>
-            <li>Forensic Lab ID linking for critical evidence attachments (Status: Flagged)</li>
-          </ul>
-
-          <div class="footer">
-            Generated by AI Audit Command Center. Confidential document for internal police verification.
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
-    doc.close();
-
-    // Trigger printing once loaded
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-
-    // Remove the iframe after a short delay
-    setTimeout(() => {
-      document.body.removeChild(iframe);
-    }, 1000);
-  };
 
   /* ── Score colour ─────────────────────────── */
   const scoreColor = (s) => {
@@ -331,9 +178,9 @@ export default function FIRAudits() {
 
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-black tracking-tight mb-1">Scan New FIR Document</h1>
+        <h1 className="text-2xl font-black tracking-tight mb-1">Scan New Petition Document</h1>
         <p className={`text-xs ${T.muted(dark)}`}>
-          Upload a complaint document — AI will extract details, map BNS/IPC sections, and score procedural compliance.
+          Upload a petition document — AI will extract details, translate to English, and validate compliance under BNSS guidelines.
         </p>
       </div>
 
@@ -492,23 +339,31 @@ export default function FIRAudits() {
 
       {/* ── Audit Result ─────────────────────────── */}
       {stage === 'done' && (() => {
-        const sc = scoreColor(MOCK_RESULT.score);
+        const petition = lastScannedPetition || {
+          petitionNo: 'PET/HYD/2026/381',
+          complainant: 'G. Laxman Rao',
+          accused: 'K. Ramaswamy',
+          sections: ['BNS 303 (Theft)'],
+          score: 95,
+          blockers: [],
+        };
+        const sc = scoreColor(petition.score);
         return (
           <FIRCard dark={dark} noPadding className="overflow-hidden">
             {/* Result header bar */}
             <div className={`px-6 py-4 border-b flex items-center justify-between gap-4 ${T.border(dark)}`}>
               <div>
                 <div className="flex items-center gap-2 mb-0.5">
-                  <h3 className="font-black text-sm">Audit Complete</h3>
+                  <h3 className="font-black text-sm">Petition Scanned &amp; Checked</h3>
                   <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${sc.bg} ${sc.ring}`}>
                     {sc.label}
                   </span>
                 </div>
-                <p className={`text-[10px] font-mono ${T.muted(dark)}`}>{MOCK_RESULT.firNo} · {selectedFile?.name}</p>
+                <p className={`text-[10px] font-mono ${T.muted(dark)}`}>{petition.petitionNo} · {selectedFile?.name}</p>
               </div>
               {/* Score ring */}
               <div className={`text-3xl font-black ${sc.ring}`}>
-                {MOCK_RESULT.score}
+                {petition.score}
                 <span className={`text-sm font-bold ${T.muted(dark)}`}>/100</span>
               </div>
             </div>
@@ -520,9 +375,9 @@ export default function FIRAudits() {
               <div className="space-y-3">
                 <p className={`text-[9px] font-black uppercase tracking-widest ${T.muted(dark)}`}>Extracted Details</p>
                 {[
-                  { label: 'FIR Reference',  val: MOCK_RESULT.firNo },
-                  { label: 'Complainant',    val: MOCK_RESULT.complainant },
-                  { label: 'Accused',        val: MOCK_RESULT.accused },
+                  { label: 'Petition Reference',  val: petition.petitionNo },
+                  { label: 'Complainant',    val: petition.complainant },
+                  { label: 'Accused',        val: petition.accused },
                 ].map((row) => (
                   <div key={row.label} className={`flex justify-between gap-4 text-xs py-2 border-b ${T.border(dark)}`}>
                     <span className={T.muted(dark)}>{row.label}</span>
@@ -534,7 +389,7 @@ export default function FIRAudits() {
                 <div className={`pt-1 text-xs`}>
                   <p className={`text-[9px] font-black uppercase tracking-widest mb-2 ${T.muted(dark)}`}>Applied Legal Sections</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {MOCK_RESULT.sections.map((s) => (
+                    {petition.sections.map((s) => (
                       <span key={s} className="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-500 font-bold text-[10px]">{s}</span>
                     ))}
                   </div>
@@ -544,18 +399,18 @@ export default function FIRAudits() {
               {/* Blockers */}
               <div>
                 <p className={`text-[9px] font-black uppercase tracking-widest mb-3 ${T.muted(dark)}`}>
-                  Procedural Blockers ({MOCK_RESULT.blockers.length})
+                  Procedural Blockers ({petition.blockers.length})
                 </p>
-                {MOCK_RESULT.blockers.length === 0 ? (
+                {petition.blockers.length === 0 ? (
                   <div className="flex items-center gap-2 text-emerald-500 text-xs font-bold">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    No blockers — FIR is court-ready
+                    No blockers — Petition is ready to file FIR
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {MOCK_RESULT.blockers.map((b, i) => (
+                    {petition.blockers.map((b, i) => (
                       <div key={i} className={`flex items-start gap-2.5 p-3 rounded-xl ${dark ? 'bg-red-500/8' : 'bg-red-50'}`}>
                         <svg className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -569,19 +424,29 @@ export default function FIRAudits() {
 
                 {/* Action buttons */}
                 <div className="flex gap-2 mt-5">
-                  <FIRButton
-                    onClick={downloadReport}
-                    variant="primary"
-                    className="flex-1"
-                  >
-                    Download PDF Report
-                  </FIRButton>
+                  {petition.blockers.length > 0 ? (
+                    <FIRButton
+                      onClick={() => navigate('/dashboard/blockers')}
+                      variant="solid"
+                      className="flex-1"
+                    >
+                      👉 Go to Blocker Flags
+                    </FIRButton>
+                  ) : (
+                    <FIRButton
+                      onClick={() => navigate('/dashboard/file-fir')}
+                      variant="solid"
+                      className="flex-1"
+                    >
+                      👉 Proceed to File FIR
+                    </FIRButton>
+                  )}
                   <FIRButton
                     onClick={reset}
                     variant="secondary"
                     dark={dark}
                   >
-                    New Audit
+                    Scan Another Petition
                   </FIRButton>
                 </div>
               </div>

@@ -7,6 +7,7 @@ import FIRAudits from './pages/FIRAudits';
 import FIRAnalytics from './pages/FIRAnalytics';
 import FIRSettings from './pages/FIRSettings';
 import FIRBlockers from './pages/FIRBlockers';
+import FileFIR from './pages/FileFIR';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/dashboard" element={<FIRLayout />}>
           <Route index element={<FIROverview />} />
           <Route path="audits" element={<FIRAudits />} />
+          <Route path="file-fir" element={<FileFIR />} />
           <Route path="analytics" element={<FIRAnalytics />} />
           <Route path="blockers" element={<FIRBlockers />} />
           <Route path="settings" element={<FIRSettings />} />
