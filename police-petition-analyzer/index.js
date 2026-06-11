@@ -90,6 +90,7 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
 
     let step3Result = null;
     let step4Result = null;
+    let step5Result = null;
     if (finalResult.status !== 'INVALID') {
       console.log('⚖️ Starting Step 3: Legal Audit & Section Mapping...');
       res.write(JSON.stringify({ status: 'progress', message: 'Step 3: Performing legal audit and mapping BNS sections...' }) + '\n');
@@ -98,7 +99,7 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
         model: 'gemini-2.5-flash',
         contents: [
           JSON.stringify(prompts.STEP_3_LEGAL_MAPPING_PROMPT),
-          JSON.stringify(finalResult.five_w_h)
+          JSON.stringify(finalResult.five_w_h || finalResult['5W1H'] || finalResult || {})
         ],
         config: {
           responseMimeType: 'application/json'
@@ -118,7 +119,7 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
           model: 'gemini-2.5-flash',
           contents: [
             JSON.stringify(prompts.STEP_4_COMPLIANCE_CHECK_PROMPT),
-            JSON.stringify(finalResult.five_w_h, null, 2),
+            JSON.stringify(finalResult.five_w_h || finalResult['5W1H'] || finalResult || {}, null, 2),
             `Translated Text: ${step1Result.english_translation}`
           ]
         });
@@ -141,8 +142,6 @@ app.post('/api/analyze-petition', upload.single('petitionImage'), async (req, re
       // ----------------------------------------------------
       console.log('📄 Generating Official FIR PDF...');
       res.write(JSON.stringify({ status: 'progress', message: 'Step 5: Generating Court-Ready FIR PDF...' }) + '\n');
-      
-      let step5Result = null;
       
       const pdfFileName = `FIR_Draft_${Date.now()}.pdf`;
       const pdfPath = path.join(__dirname, 'test_petitions', pdfFileName);

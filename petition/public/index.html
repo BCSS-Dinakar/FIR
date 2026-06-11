@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: rgba(0, 0, 0, 0.08);
+            --shadow-color: rgba(148, 163, 184, 0.25);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(210,100%,95%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(280,100%,95%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 100%, hsla(250,100%,92%,1) 0, transparent 50%);
+            background-size: cover;
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .layout {
+            display: flex;
+            gap: 2rem;
+            width: 100%;
+            max-width: 1000px;
+            align-items: flex-start;
+        }
+
+        .container {
+            flex: 1;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 20px 40px -10px var(--shadow-color);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px -10px var(--shadow-color);
+            position: sticky;
+            top: 2rem;
+        }
+
+        h1 {
+            font-weight: 600;
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+
+        h2 {
+            font-weight: 600;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            border-bottom: 2px solid rgba(79, 70, 229, 0.1);
+            padding-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(79, 70, 229, 0.3);
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary);
+            background: rgba(79, 70, 229, 0.03);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+            transition: transform 0.3s ease;
+        }
+
+        .upload-area:hover .upload-icon {
+            transform: scale(1.1) translateY(-5px);
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .upload-hint {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        #file-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-list {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .file-item {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            padding: 0.85rem 1.2rem;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .file-name {
+            font-size: 0.95rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 80%;
+        }
+
+        .remove-file {
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1.2rem;
+            line-height: 1;
+            transition: transform 0.2s, color 0.2s;
+            padding: 4px;
+        }
+
+        .remove-file:hover {
+            color: #b91c1c;
+            transform: scale(1.2);
+        }
+
+        .upload-btn {
+            width: 100%;
+            padding: 1rem;
+            margin-top: 2rem;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.3s ease, transform 0.1s ease, box-shadow 0.3s ease;
+            display: none;
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+        }
+
+        .upload-btn:hover {
+            opacity: 0.9;
+            box-shadow: 0 15px 20px -3px rgba(79, 70, 229, 0.4);
+        }
+
+        .upload-btn:active {
+            transform: scale(0.98);
+        }
+
+        .pipeline-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            margin-top: 1rem;
+        }
+
+        .terminal {
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-top: 2rem;
+            min-height: 150px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            display: none;
+            box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.2);
+            border: 1px solid #333;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        /* Sidebar Sample Items */
+        .sample-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0.75rem;
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .sample-item:hover {
+            border-color: var(--primary);
+            background: #f8fafc;
+            transform: translateX(4px);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        .sample-icon {
+            font-size: 1.5rem;
+        }
+
+        .sample-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sample-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .sample-type {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .status-message {
+            margin-top: 1.5rem;
+            text-align: center;
+            font-size: 0.95rem;
+            font-weight: 500;
+            padding: 1rem;
+            border-radius: 12px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+            display: block;
+        }
+
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            display: block;
+        }
+
+        @media (max-width: 800px) {
+            .layout {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                position: relative;
+                top: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="layout">
+        <div class="container">
+            <h1>Upload Studio</h1>
+            <p class="subtitle">Securely upload your images and text files.</p>
+
+            <div class="upload-area" id="drop-area">
+                <span class="upload-icon">☁️</span>
+                <div class="upload-text">Drag & drop files here or click to browse</div>
+                <div class="upload-hint">Supported formats: JPG, PNG, GIF, WEBP, TXT (Max 5MB)</div>
+                <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.txt">
+            </div>
+
+            <div class="file-list" id="file-list"></div>
+
+            <button class="upload-btn" id="upload-btn">Upload Files</button>
+            <button class="upload-btn pipeline-btn" id="pipeline-btn" style="display: none;">Run FIR Pipeline</button>
+            <div class="status-message" id="status-message"></div>
+            <div class="terminal" id="terminal-output"></div>
+        </div>
+
+        <div class="sidebar">
+            <h2>📂 Sample Petitions</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">Click to load a sample into the queue.</p>
+
+            <p style="font-size: 0.78rem; font-weight: 600; color: #16a34a; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">✅ Valid Petitions</p>
+
+            <div class="sample-item" onclick="addSample('valid_01_english_typed_cyberfraud.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">Cyber Fraud (EN)</span>
+                    <span class="sample-type">English · Typed</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('valid_02_telugu_typed_domestic_violence.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">గృహహింస (TE)</span>
+                    <span class="sample-type">Telugu · Typed</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('valid_03_hindi_typed_vehicle_theft.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">वाहन चोरी (HI)</span>
+                    <span class="sample-type">Hindi · Typed</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('valid_04_tamil_typed_robbery.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">கைப்பை திருட்டு (TA)</span>
+                    <span class="sample-type">Tamil · Typed</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('valid_05_english_handwritten_style_burglary.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">Burglary (EN)</span>
+                    <span class="sample-type">English · Handwritten style</span>
+                </div>
+            </div>
+
+            <p style="font-size: 0.78rem; font-weight: 600; color: #dc2626; margin: 1rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">❌ Invalid Petitions</p>
+
+            <div class="sample-item" onclick="addSample('invalid_01_english_too_vague.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">Too Vague (EN)</span>
+                    <span class="sample-type">English · No details</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('invalid_02_telugu_handwritten_missing_details.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">వివరాలు లేవు (TE)</span>
+                    <span class="sample-type">Telugu · Handwritten style</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('invalid_03_hindi_missing_address_date.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">पता / तारीख नहीं (HI)</span>
+                    <span class="sample-type">Hindi · No address/date</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('invalid_04_tamil_missing_when_how.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">எப்போது இல்லை (TA)</span>
+                    <span class="sample-type">Tamil · Missing when/how</span>
+                </div>
+            </div>
+
+            <div class="sample-item" onclick="addSample('invalid_05_english_anonymous_no_specifics.txt', 'text/plain', '📄')">
+                <span class="sample-icon">📄</span>
+                <div class="sample-details">
+                    <span class="sample-title">Anonymous (EN)</span>
+                    <span class="sample-type">English · No name/date/place</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const fileListContainer = document.getElementById('file-list');
+        const uploadBtn = document.getElementById('upload-btn');
+        const pipelineBtn = document.getElementById('pipeline-btn');
+        const statusMessage = document.getElementById('status-message');
+        const terminalOutput = document.getElementById('terminal-output');
+        
+        let selectedFiles = [];
+
+        // Drag and drop events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('dragover');
+            }, false);
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        });
+
+        fileInput.addEventListener('change', function() {
+            handleFiles(this.files);
+            this.value = ''; // Reset input
+        });
+
+        function handleFiles(files) {
+            statusMessage.style.display = 'none';
+            statusMessage.className = 'status-message';
+            
+            Array.from(files).forEach(file => {
+                if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            });
+            renderFileList();
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            renderFileList();
+        }
+
+        function renderFileList() {
+            fileListContainer.innerHTML = '';
+            
+            if (selectedFiles.length > 0) {
+                uploadBtn.style.display = 'block';
+                pipelineBtn.style.display = 'block';
+                
+                selectedFiles.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    
+                    const size = (file.size / 1024).toFixed(2) + ' KB';
+                    // Determine icon based on type loosely
+                    const icon = file.type.includes('image') ? '🖼️' : '📄';
+                    
+                    item.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.2rem;">${icon}</span>
+                            <span class="file-name">${file.name} <span style="color:#94a3b8; font-size:0.8rem; margin-left: 5px;">(${size})</span></span>
+                        </div>
+                        <span class="remove-file" onclick="removeFile(${index})">×</span>
+                    `;
+                    fileListContainer.appendChild(item);
+                });
+            } else {
+                uploadBtn.style.display = 'none';
+                pipelineBtn.style.display = 'none';
+                terminalOutput.style.display = 'none';
+            }
+        }
+
+        // Function to fetch and add sample files
+        async function addSample(filename, mimeType, icon) {
+            try {
+                const response = await fetch('/samples/' + filename);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const blob = await response.blob();
+                
+                // Create a new File object
+                const file = new File([blob], filename, { type: mimeType });
+                
+                // Add to our selected files array
+                handleFiles([file]);
+                
+            } catch (error) {
+                console.error("Error fetching sample file:", error);
+                alert("Could not load sample file. Make sure the server is running.");
+            }
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('files', file);
+            });
+
+            const originalText = uploadBtn.textContent;
+            uploadBtn.textContent = 'Uploading...';
+            uploadBtn.disabled = true;
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusMessage.textContent = result.message;
+                    statusMessage.className = 'status-message status-success';
+                    selectedFiles = [];
+                    renderFileList();
+                } else {
+                    statusMessage.textContent = result.message || 'Upload failed.';
+                    statusMessage.className = 'status-message status-error';
+                }
+            } catch (error) {
+                statusMessage.textContent = 'Network error occurred.';
+                statusMessage.className = 'status-message status-error';
+            } finally {
+                uploadBtn.textContent = originalText;
+                uploadBtn.disabled = false;
+            }
+        });
+
+        pipelineBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+
+            const file = selectedFiles[0]; // Process the first file
+            const formData = new FormData();
+            formData.append('image', file);
+
+            statusMessage.style.display = 'none';
+            terminalOutput.style.display = 'block';
+            terminalOutput.textContent = `> Initializing FIR Pipeline...\n> Reading file: ${file.name}\n`;
+            
+            pipelineBtn.textContent = 'Processing...';
+            pipelineBtn.disabled = true;
+            uploadBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/firpipeline', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok && response.headers.get('content-type')?.includes('application/json')) {
+                    const err = await response.json();
+                    terminalOutput.textContent += '\n> [ERROR] Pipeline failed: ' + (err.message || 'Unknown error');
+                    return;
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep the last incomplete line in the buffer
+                    
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const parsed = JSON.parse(line);
+                            if (parsed.type === 'progress') {
+                                terminalOutput.textContent += parsed.message;
+                            } else if (parsed.type === 'result') {
+                                const result = parsed.data;
+                                if (!result.valid) {
+                                    terminalOutput.textContent += '\n\n> Validation: FAILED ❌\n\n[REASON]\n' + result.reason + '\n\n> Please resubmit with complete details based on the missing information above.\n> Pipeline rejected.';
+                                    terminalOutput.style.color = '#ff6b6b';
+                                } else {
+                                    terminalOutput.textContent += '\n\n> Validation: PASSED ✅\n> Process Completed Successfully.\n\n[FINAL PIPELINE RESPONSE]\n---------------------------------\n' + result.response + '\n---------------------------------\n> Pipeline ended.';
+                                }
+                            } else if (parsed.type === 'error') {
+                                terminalOutput.textContent += '\n> [ERROR] ' + parsed.message;
+                            }
+                        } catch(e) {
+                            console.error("Error parsing JSON line", line);
+                        }
+                    }
+                }
+            } catch (error) {
+                terminalOutput.textContent += '\n> [NETWORK ERROR] ' + error.message;
+            } finally {
+                pipelineBtn.textContent = 'Run FIR Pipeline';
+                pipelineBtn.disabled = false;
+                uploadBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
