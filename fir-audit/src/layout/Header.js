@@ -107,7 +107,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
           <FIRButton
             variant="danger"
             dark={dark}
-            title="View Blocker Flags"
+            title="View Mistakes / Errors"
             className="font-black"
             icon={
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +116,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
               </svg>
             }
           >
-            3 Blockers
+            3 Mistakes
           </FIRButton>
         </div>
 
@@ -125,7 +125,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
           <FIRButton
             variant="warning"
             dark={dark}
-            title="Open Audit Queue"
+            title="Open Pending Cases"
             className="font-black"
             icon={
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,7 +134,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
               </svg>
             }
           >
-            5 Pending
+            5 Pending Cases
           </FIRButton>
         </div>
 
@@ -197,7 +197,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
                 <div className={`px-4 py-3 border-b transition-colors cursor-pointer ${dark ? 'border-white/5 hover:bg-white/5' : 'border-black/5 hover:bg-black/5'}`}>
                   <div className="text-[10px] font-bold text-red-500 mb-1 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                    New Critical Blocker
+                    Critical Mistake
                   </div>
                   <div className="text-xs font-medium">FIR/HYD/226/103 missing Forensic ID.</div>
                   <div className={`text-[9px] mt-1 ${dark ? 'text-white/40' : 'text-black/40'}`}>2 mins ago</div>
@@ -205,9 +205,9 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
                 <div className={`px-4 py-3 border-b transition-colors cursor-pointer ${dark ? 'border-white/5 hover:bg-white/5' : 'border-black/5 hover:bg-black/5'}`}>
                   <div className="text-[10px] font-bold text-emerald-500 mb-1 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Audit Completed
+                    FIR Checked
                   </div>
-                  <div className="text-xs font-medium">FIR/HYD/226/095 scored 95% (Ready).</div>
+                  <div className="text-xs font-medium">FIR/HYD/226/095 scored 95% (Ready to File).</div>
                   <div className={`text-[9px] mt-1 ${dark ? 'text-white/40' : 'text-black/40'}`}>1 hour ago</div>
                 </div>
                 <div className={`px-4 py-3 transition-colors cursor-pointer ${dark ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}>
@@ -221,7 +221,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
                 <div className={`px-4 py-3 border-b transition-colors cursor-pointer ${dark ? 'border-white/5 hover:bg-white/5' : 'border-black/5 hover:bg-black/5'}`}>
                   <div className="text-[10px] font-bold text-red-500 mb-1 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                    New Critical Blocker
+                    Critical Mistake
                   </div>
                   <div className="text-xs font-medium">FIR/HYD/226/088 weight mismatch.</div>
                   <div className={`text-[9px] mt-1 ${dark ? 'text-white/40' : 'text-black/40'}`}>Yesterday</div>
@@ -229,9 +229,9 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
                 <div className={`px-4 py-3 border-b transition-colors cursor-pointer ${dark ? 'border-white/5 hover:bg-white/5' : 'border-black/5 hover:bg-black/5'}`}>
                   <div className="text-[10px] font-bold text-emerald-500 mb-1 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Audit Completed
+                    FIR Checked
                   </div>
-                  <div className="text-xs font-medium">FIR/HYD/226/092 scored 98% (Ready).</div>
+                  <div className="text-xs font-medium">FIR/HYD/226/092 scored 98% (Ready to File).</div>
                   <div className={`text-[9px] mt-1 ${dark ? 'text-white/40' : 'text-black/40'}`}>2 days ago</div>
                 </div>
                 <div className={`px-4 py-3 transition-colors cursor-pointer ${dark ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}>
@@ -239,7 +239,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                     Weekly Report
                   </div>
-                  <div className="text-xs font-medium">Your weekly compliance report is ready.</div>
+                  <div className="text-xs font-medium">Your weekly station report is ready.</div>
                   <div className={`text-[9px] mt-1 ${dark ? 'text-white/40' : 'text-black/40'}`}>3 days ago</div>
                 </div>
               </div>

@@ -4,12 +4,12 @@ import { logoutUser } from '../api/auth';
 
 const navGroups = [
   {
-    groupLabel: 'Auditing',
+    groupLabel: 'FIR Operations',
     items: [
       {
         path: '/dashboard',
-        label: 'Compliance Overview',
-        sublabel: 'Scores & stats',
+        label: 'FIR Status Board',
+        sublabel: 'Daily case summary',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -19,8 +19,8 @@ const navGroups = [
       },
       {
         path: '/dashboard/audits',
-        label: 'Scan New Petition',
-        sublabel: 'Upload & AI Check',
+        label: 'Check New Petition',
+        sublabel: 'Scan document for errors',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -30,8 +30,8 @@ const navGroups = [
       },
       {
         path: '/dashboard/file-fir',
-        label: 'File FIR',
-        sublabel: 'Draft & Register',
+        label: 'Draft & File FIR',
+        sublabel: 'Prepare CCTNS report',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -41,8 +41,8 @@ const navGroups = [
       },
       {
         path: '/dashboard/blockers',
-        label: 'Blocker Flags',
-        sublabel: 'Procedural errors',
+        label: 'Mistakes / Warnings',
+        sublabel: 'Fix before submitting',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -53,12 +53,12 @@ const navGroups = [
     ],
   },
   {
-    groupLabel: 'Reports',
+    groupLabel: 'Records & History',
     items: [
       {
         path: '/dashboard/analytics',
-        label: 'Audit Reports',
-        sublabel: 'History & exports',
+        label: 'Case Analytics & Trends',
+        sublabel: 'View reports and statistics',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -69,12 +69,12 @@ const navGroups = [
     ],
   },
   {
-    groupLabel: 'Station',
+    groupLabel: 'Station Settings',
     items: [
       {
         path: '/dashboard/settings',
-        label: 'Station Config',
-        sublabel: 'PS settings & rules',
+        label: 'Station Profile & Settings',
+        sublabel: 'Manage profile and rules',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -177,7 +177,7 @@ export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, 
                 <span className={dark ? 'text-white/20' : 'text-black/20'}>.ai</span>
               </div>
               <div className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${dark ? 'text-white/30' : 'text-black/30'}`}>
-                AI Legal Compliance
+                AI Case Assistant
               </div>
             </div>
           )}

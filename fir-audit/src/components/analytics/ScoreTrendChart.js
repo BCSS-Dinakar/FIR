@@ -1,24 +1,28 @@
 import FIRCard from '../reusable/FIRCard';
 
-export default function ScoreTrendChart({ dark }) {
+export default function ScoreTrendChart({ dark, petitions = [] }) {
   const T = {
     muted: (d) => d ? 'text-white/50' : 'text-black/50',
     border: (d) => d ? 'border-white/[0.06]' : 'border-black/[0.08]',
   };
 
-  // Mock data points representing average score over the last 14 days
-  const points = [65, 68, 72, 70, 75, 78, 80, 76, 82, 85, 84, 88, 90, 91];
+  // Get real score list (chronological order, oldest to newest)
+  const realScores = petitions.map(p => p.score).reverse();
+  const points = realScores.length > 0 ? realScores : [65, 68, 72, 70, 75, 78, 80, 76, 82, 85, 84, 88, 90, 91];
+  
+  const currentAvg = points.length > 0 ? (points.reduce((a, b) => a + b, 0) / points.length).toFixed(1) : '0';
+  
   const max = 100;
-  const min = 50;
+  const min = 40;
   const range = max - min;
   
   // Create SVG path
   const width = 600;
   const height = 150;
-  const dx = width / (points.length - 1);
+  const dx = points.length > 1 ? width / (points.length - 1) : width;
   
   const pathData = points.map((p, i) => {
-    const x = i * dx;
+    const x = points.length > 1 ? i * dx : width / 2;
     const y = height - ((p - min) / range) * height;
     return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
   }).join(' ');
@@ -28,12 +32,14 @@ export default function ScoreTrendChart({ dark }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-bold text-sm">Compliance Score Trend</h3>
-          <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>14-day moving average</p>
+          <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>
+            {realScores.length > 0 ? 'Based on live database cases' : '14-day moving average'}
+          </p>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-black text-emerald-500">91.4%</div>
+          <div className="text-2xl font-black text-emerald-500">{currentAvg}%</div>
           <div className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full mt-1">
-            +12.4% vs last week
+            {realScores.length > 0 ? 'Live station average' : '+12.4% vs last week'}
           </div>
         </div>
       </div>

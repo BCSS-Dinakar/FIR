@@ -20,8 +20,8 @@ export default function AIEngineConfig({ dark }) {
   return (
     <FIRCard dark={dark} className="space-y-6">
       <div>
-        <h3 className="font-bold text-sm">AI Auditor Configuration</h3>
-        <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>Tune the Gemini Vision engine and procedural strictness</p>
+        <h3 className="font-bold text-sm">AI FIR Checker Settings</h3>
+        <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>Tune the Gemini Vision engine and checking strictness</p>
       </div>
 
       <div className="space-y-5">
@@ -35,7 +35,7 @@ export default function AIEngineConfig({ dark }) {
             className={`w-full max-w-xs px-4 py-2.5 rounded-xl border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/50 ${T.input(dark)}`}
           >
             <option value="High">High (Flags all minor BNSS deviations)</option>
-            <option value="Medium">Medium (Flags only critical blockers)</option>
+            <option value="Medium">Medium (Flags only critical mistakes)</option>
             <option value="Low">Low (Permissive mode)</option>
           </select>
         </div>
@@ -71,8 +71,8 @@ export default function AIEngineConfig({ dark }) {
 
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs font-bold">Auto-Flag Critical Blockers</div>
-              <div className={`text-[10px] mt-0.5 ${T.muted(dark)}`}>Prevent FIR PDF generation if score drops below 70%</div>
+              <div className="text-xs font-bold">Auto-Flag Critical Mistakes</div>
+              <div className={`text-[10px] mt-0.5 ${T.muted(dark)}`}>Prevent FIR PDF generation if accuracy drops below 70%</div>
             </div>
             <button 
               onClick={() => toggle('autoFlag')}

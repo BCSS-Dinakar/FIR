@@ -14,10 +14,10 @@ export default function FIRSettings() {
     <div className="space-y-6 max-w-5xl">
       <div>
         <h1 className="text-2xl font-black tracking-tight mb-1">
-          System Settings
+          Station Profile & Settings
         </h1>
         <p className={`text-xs ${T.muted(dark)}`}>
-          Configure your station metadata, legal reference databases, and AI auditor thresholds.
+          Configure your station metadata, legal reference databases, and AI checking rules.
         </p>
       </div>
 

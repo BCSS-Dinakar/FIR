@@ -3,47 +3,7 @@ import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FIRBadge from '../components/reusable/FIRBadge';
-
-const SEED_PETITIONS = [
-  {
-    id: 'PET-2026-001',
-    petitionNo: 'PET/HYD/2026/001',
-    date: 'Yesterday, 14:32',
-    complainant: 'K. Raghunath Prasad',
-    accused: 'G. Venkatesh & Partners',
-    sections: ['BNS 318 (Cheating)', 'BNS 336 (Forgery)'],
-    score: 94,
-    status: 'Pending Filing',
-    blockers: [],
-    sourceFile: 'complaint_raghunath_signed.pdf'
-  },
-  {
-    id: 'PET-2026-002',
-    petitionNo: 'PET/HYD/2026/002',
-    date: 'Yesterday, 10:15',
-    complainant: 'M. Sridevi',
-    accused: 'M. Rajender',
-    sections: ['BNS 84 (Dowry Harassment)'],
-    score: 68,
-    status: 'Pending Filing',
-    blockers: ['Victim statement date mismatch', 'No list of items attached'],
-    sourceFile: 'sridevi_complaint_scan.jpg'
-  },
-  {
-    id: 'PET-2026-003',
-    petitionNo: 'PET/HYD/2026/003',
-    date: '10 Jun 2026',
-    complainant: 'Syed Rahmathullah',
-    accused: 'Unknown intruder',
-    sections: ['BNS 303 (Theft)', 'BNS 331 (House-trespass)'],
-    score: 97,
-    status: 'FIR Filed',
-    firNo: 'FIR/HYD/226/104',
-    filedAt: '10 Jun 2026, 16:40',
-    blockers: [],
-    sourceFile: 'syed_theft_complaint.docx'
-  }
-];
+import { getPetitions, updatePetition } from '../api/petition';
 
 export default function FIRBlockers() {
   const { dark } = useOutletContext();
@@ -53,15 +13,17 @@ export default function FIRBlockers() {
   const [itemsPerPage, setItemsPerPage] = useState(2);
   const [resolvingBlocker, setResolvingBlocker] = useState(null); // Tracks which blocker is being resolved
 
-  // Load from localStorage or seed on mount
+  // Load from backend on mount
   useEffect(() => {
-    const data = localStorage.getItem('scanned_petitions');
-    if (data) {
-      setPetitions(JSON.parse(data));
-    } else {
-      localStorage.setItem('scanned_petitions', JSON.stringify(SEED_PETITIONS));
-      setPetitions(SEED_PETITIONS);
-    }
+    const loadPetitions = async () => {
+      try {
+        const data = await getPetitions();
+        setPetitions(data);
+      } catch (err) {
+        console.error('Failed to load petitions:', err);
+      }
+    };
+    loadPetitions();
   }, []);
 
   // Compute active blockers dynamically from scanned petitions
@@ -86,33 +48,48 @@ export default function FIRBlockers() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentBlockers = activeBlockers.slice(startIndex, startIndex + itemsPerPage);
 
-  const confirmResolve = (e) => {
+  const confirmResolve = async (e) => {
     e.preventDefault();
     if (!resolvingBlocker) return;
     
-    const updated = petitions.map(p => {
-      if (p.id === resolvingBlocker.petitionId) {
-        const remainingBlockers = p.blockers.filter(b => b !== resolvingBlocker.issue);
-        return {
-          ...p,
-          blockers: remainingBlockers,
-          score: remainingBlockers.length === 0 ? 95 : p.score // Boost score once fully cleared
-        };
-      }
-      return p;
-    });
+    // Find the target petition
+    const targetPetition = petitions.find(p => p.id === resolvingBlocker.petitionId);
+    if (!targetPetition) return;
 
-    localStorage.setItem('scanned_petitions', JSON.stringify(updated));
-    setPetitions(updated);
-    
-    // Adjust page index if necessary
-    const newBlockerCount = activeBlockers.length - 1;
-    const maxPage = Math.max(1, Math.ceil(newBlockerCount / itemsPerPage));
-    if (currentPage > maxPage) {
-      setCurrentPage(maxPage);
+    const remainingBlockers = targetPetition.blockers.filter(b => b !== resolvingBlocker.issue);
+    const updatedPetitionData = {
+      ...targetPetition,
+      blockers: remainingBlockers,
+      score: remainingBlockers.length === 0 ? 95 : targetPetition.score // Boost score once fully cleared
+    };
+
+    try {
+      // 1. Update backend database
+      await updatePetition(targetPetition.id, updatedPetitionData);
+
+      // 2. Update local state
+      const updatedList = petitions.map(p => {
+        if (p.id === resolvingBlocker.petitionId) {
+          return updatedPetitionData;
+        }
+        return p;
+      });
+      setPetitions(updatedList);
+      localStorage.setItem('scanned_petitions', JSON.stringify(updatedList));
+      window.dispatchEvent(new Event('storage'));
+
+      // Adjust page index if necessary
+      const nextActiveBlockersCount = activeBlockers.length - 1;
+      const maxPage = Math.max(1, Math.ceil(nextActiveBlockersCount / itemsPerPage));
+      if (currentPage > maxPage) {
+        setCurrentPage(maxPage);
+      }
+      
+      setResolvingBlocker(null);
+    } catch (err) {
+      console.error('Failed to update petition blocker in database:', err);
+      alert('Failed to resolve mistake: ' + err.message);
     }
-    
-    setResolvingBlocker(null);
   };
 
   const handlePageChange = (page) => {
@@ -134,16 +111,16 @@ export default function FIRBlockers() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black tracking-tight mb-1">Blocker Flags</h1>
+        <h1 className="text-2xl font-black tracking-tight mb-1">Mistakes / Warnings</h1>
         <p className={`text-xs ${T.muted(dark)}`}>
-          Procedural errors and compliance failures blocking FIR registration. Resolve all blockers before filing.
+          Procedural errors and mistakes blocking FIR registration. Fix all mistakes before filing.
         </p>
       </div>
 
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
-          { label: 'Active Blockers', val: activeBlockers.length.toString(), color: 'text-red-500', sub: 'Filing locked until resolved' },
+          { label: 'Active Mistakes', val: activeBlockers.length.toString(), color: 'text-red-500', sub: 'Filing locked until fixed' },
           { label: 'Avg. Resolution Time', val: '47 min', color: 'text-amber-500', sub: 'This week' },
           { label: 'Resolved Today', val: '11', color: 'text-emerald-500', sub: 'Since 08:00 hrs' },
         ].map((s) => (
@@ -158,7 +135,7 @@ export default function FIRBlockers() {
       {/* Blocker list */}
       <FIRCard dark={dark} noPadding className="overflow-hidden">
         <div className={`px-5 py-3.5 border-b ${T.border(dark)} flex items-center justify-between`}>
-          <h3 className="text-xs font-black uppercase tracking-wider">Active Blockers Requiring Resolution</h3>
+          <h3 className="text-xs font-black uppercase tracking-wider">Active Mistakes Requiring Correction</h3>
           {activeBlockers.length > 0 ? (
             <span className="text-[10px] text-red-500 font-bold animate-pulse">● {activeBlockers.length} Unresolved</span>
           ) : (
@@ -198,7 +175,7 @@ export default function FIRBlockers() {
         {/* Pagination */}
         <div className={`px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t ${T.border(dark)}`}>
           <div className="flex items-center gap-3">
-            <span className={`text-[11px] ${T.muted(dark)}`}>Showing {activeBlockers.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + itemsPerPage, activeBlockers.length)} of {activeBlockers.length} blockers</span>
+            <span className={`text-[11px] ${T.muted(dark)}`}>Showing {activeBlockers.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + itemsPerPage, activeBlockers.length)} of {activeBlockers.length} mistakes</span>
             <select 
               value={itemsPerPage} 
               onChange={handleItemsPerPageChange}
@@ -240,7 +217,7 @@ export default function FIRBlockers() {
           <div className={`w-full max-w-md rounded-2xl shadow-2xl border overflow-hidden ${dark ? 'bg-brand-navy-900 border-white/10' : 'bg-white border-black/10'}`}>
             
             <div className={`px-5 py-4 border-b flex items-center justify-between ${T.border(dark)}`}>
-              <h3 className="font-black text-sm">Resolve Procedural Blocker</h3>
+              <h3 className="font-black text-sm">Fix Procedural Mistake</h3>
               <button onClick={() => setResolvingBlocker(null)} className={`text-xs font-bold transition-colors ${dark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>
                 ✕ Close
               </button>
@@ -275,7 +252,7 @@ export default function FIRBlockers() {
                     Cancel
                   </FIRButton>
                   <FIRButton type="submit" variant="primary" className="flex-1">
-                    Submit Resolution
+                    Submit Correction
                   </FIRButton>
                 </div>
               </form>

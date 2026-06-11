@@ -1,10 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
+const petitionRoutes = require('./routes/petition');
+const firRoutes = require('./routes/fir');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,11 +26,19 @@ app.use(cors({
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/petitions', petitionRoutes);
+app.use('/api/firs', firRoutes);
 
 // Basic Route for testing
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'FIRAudit Backend is running successfully!' });
 });
+
+// Ensure uploads folder exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
 
 // Start Server
 app.listen(PORT, async () => {

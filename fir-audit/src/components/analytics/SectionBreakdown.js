@@ -1,20 +1,47 @@
 import FIRCard from '../reusable/FIRCard';
 
-export default function SectionBreakdown({ dark }) {
+export default function SectionBreakdown({ dark, petitions = [] }) {
   const T = {
     muted: (d) => d ? 'text-white/50' : 'text-black/50',
     border: (d) => d ? 'border-white/[0.06]' : 'border-black/[0.08]',
   };
 
-  const data = [
-    { section: 'Missing Sec 173 Signatures', count: 42, color: 'bg-red-500' },
-    { section: 'Invalid Date Format', count: 28, color: 'bg-amber-500' },
-    { section: 'Missing Forensic ID', count: 18, color: 'bg-orange-500' },
-    { section: 'Incorrect BNS Mapping', count: 12, color: 'bg-yellow-500' },
-    { section: 'Unclear Accused Details', count: 8, color: 'bg-blue-500' },
-  ];
+  // Group and count active blockers from all petitions
+  const blockerCounts = {};
+  let totalBlockerCount = 0;
+  petitions.forEach(p => {
+    if (p.blockers && p.blockers.length > 0) {
+      p.blockers.forEach(b => {
+        blockerCounts[b] = (blockerCounts[b] || 0) + 1;
+        totalBlockerCount++;
+      });
+    }
+  });
 
-  const max = Math.max(...data.map(d => d.count));
+  let data = [];
+  if (totalBlockerCount > 0) {
+    data = Object.entries(blockerCounts)
+      .map(([section, count], idx) => {
+        const colors = ['bg-red-500', 'bg-amber-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500'];
+        return {
+          section,
+          count,
+          color: colors[idx % colors.length]
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  } else {
+    data = [
+      { section: 'Missing Sec 173 Signatures', count: 0, color: 'bg-red-500' },
+      { section: 'Invalid Date Format', count: 0, color: 'bg-amber-500' },
+      { section: 'Missing Forensic ID', count: 0, color: 'bg-orange-500' },
+      { section: 'Incorrect BNS Mapping', count: 0, color: 'bg-yellow-500' },
+      { section: 'Unclear Accused Details', count: 0, color: 'bg-blue-500' },
+    ];
+  }
+
+  const max = Math.max(...data.map(d => d.count), 1);
 
   return (
     <FIRCard dark={dark} className="space-y-5">

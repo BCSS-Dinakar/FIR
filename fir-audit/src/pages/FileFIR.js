@@ -3,47 +3,9 @@ import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FileFIRForm from '../components/reusable/FileFIRForm';
+import { getPetitions, updatePetition, createFir } from '../api/petition';
 
-const SEED_PETITIONS = [
-  {
-    id: 'PET-2026-001',
-    petitionNo: 'PET/HYD/2026/001',
-    date: 'Yesterday, 14:32',
-    complainant: 'K. Raghunath Prasad',
-    accused: 'G. Venkatesh & Partners',
-    sections: ['BNS 318 (Cheating)', 'BNS 336 (Forgery)'],
-    score: 94,
-    status: 'Pending Filing',
-    blockers: [],
-    sourceFile: 'complaint_raghunath_signed.pdf'
-  },
-  {
-    id: 'PET-2026-002',
-    petitionNo: 'PET/HYD/2026/002',
-    date: 'Yesterday, 10:15',
-    complainant: 'M. Sridevi',
-    accused: 'M. Rajender',
-    sections: ['BNS 84 (Dowry Harassment)'],
-    score: 68,
-    status: 'Pending Filing',
-    blockers: ['Victim statement date mismatch', 'No list of items attached'],
-    sourceFile: 'sridevi_complaint_scan.jpg'
-  },
-  {
-    id: 'PET-2026-003',
-    petitionNo: 'PET/HYD/2026/003',
-    date: '10 Jun 2026',
-    complainant: 'Syed Rahmathullah',
-    accused: 'Unknown intruder',
-    sections: ['BNS 303 (Theft)', 'BNS 331 (House-trespass)'],
-    score: 97,
-    status: 'FIR Filed',
-    firNo: 'FIR/HYD/226/104',
-    filedAt: '10 Jun 2026, 16:40',
-    blockers: [],
-    sourceFile: 'syed_theft_complaint.docx'
-  }
-];
+
 
 const ALL_BNS_SECTIONS = [
   { code: 'BNS 318 (Cheating)', desc: 'Cheating and dishonestly inducing delivery of property' },
@@ -96,15 +58,18 @@ export default function FileFIR() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(3);
   
-  // Load data from localStorage or seed
+  // Load data from backend database
   useEffect(() => {
-    const data = localStorage.getItem('scanned_petitions');
-    if (data) {
-      setPetitions(JSON.parse(data));
-    } else {
-      localStorage.setItem('scanned_petitions', JSON.stringify(SEED_PETITIONS));
-      setPetitions(SEED_PETITIONS);
-    }
+    const loadPetitions = async () => {
+      try {
+        const data = await getPetitions();
+        setPetitions(data);
+        localStorage.setItem('scanned_petitions', JSON.stringify(data));
+      } catch (err) {
+        console.error('Failed to load petitions:', err);
+      }
+    };
+    loadPetitions();
   }, []);
 
   // Reset pagination on search or filter change
@@ -219,41 +184,66 @@ export default function FileFIR() {
       setTimeout(() => {
         setModalLogs(prev => [...prev, log]);
         if (index === logs.length - 1) {
-          setTimeout(() => {
+          setTimeout(async () => {
             const firNumber = `FIR/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
             setGeneratedFIRNo(firNumber);
             
-            // Update petition status in database/localStorage
-            const updated = petitions.map(p => {
-              if (p.id === selectedPetition.id) {
-                const updatedPet = {
-                  ...p,
-                  complainant: formData.complainant,
-                  accused: formData.accused,
-                  sections: modalSections,
-                  status: 'FIR Filed',
-                  firNo: firNumber,
-                  filedAt: new Date().toLocaleString(),
-                  
-                  // Save custom fields
-                  district: formData.district,
-                  policeStation: formData.policeStation,
-                  gdNumber: formData.gdNumber,
-                  incidentDate: formData.incidentDate,
-                  incidentTime: formData.incidentTime,
-                  occurrencePlace: formData.occurrencePlace,
-                  complainantRelative: formData.complainantRelative,
-                  complainantPhone: formData.complainantPhone,
-                  complainantAddress: formData.complainantAddress,
-                  incidentFacts: formData.incidentFacts
-                };
-                setSelectedPetition(updatedPet);
-                return updatedPet;
-              }
-              return p;
-            });
-            saveToLocalStorage(updated);
-            setModalStage('success');
+            const updatedPet = {
+              ...selectedPetition,
+              complainant: formData.complainant,
+              accused: formData.accused,
+              sections: modalSections,
+              status: 'FIR Filed',
+              firNo: firNumber,
+              filedAt: new Date().toLocaleString(),
+              
+              district: formData.district,
+              policeStation: formData.policeStation,
+              gdNumber: formData.gdNumber,
+              incidentDate: formData.incidentDate,
+              incidentTime: formData.incidentTime,
+              occurrencePlace: formData.occurrencePlace,
+              complainantRelative: formData.complainantRelative,
+              complainantPhone: formData.complainantPhone,
+              complainantAddress: formData.complainantAddress,
+              incidentFacts: formData.incidentFacts
+            };
+
+            const firRecord = {
+              firNo: firNumber,
+              petitionId: selectedPetition.id,
+              complainant: formData.complainant,
+              accused: formData.accused,
+              sections: modalSections,
+              filedAt: new Date().toLocaleString(),
+              district: formData.district,
+              policeStation: formData.policeStation,
+              gdNumber: formData.gdNumber,
+              incidentDate: formData.incidentDate,
+              incidentTime: formData.incidentTime,
+              occurrencePlace: formData.occurrencePlace,
+              complainantRelative: formData.complainantRelative,
+              complainantPhone: formData.complainantPhone,
+              complainantAddress: formData.complainantAddress,
+              incidentFacts: formData.incidentFacts
+            };
+
+            try {
+              // 1. Create separate FIR record in MongoDB
+              await createFir(firRecord);
+
+              // 2. Update petition status in MongoDB
+              await updatePetition(selectedPetition.id, updatedPet);
+
+              // 3. Update local UI state
+              setSelectedPetition(updatedPet);
+              const updatedList = petitions.map(p => p.id === selectedPetition.id ? updatedPet : p);
+              saveToLocalStorage(updatedList);
+              setModalStage('success');
+            } catch (err) {
+              console.error('Failed to register FIR in database:', err);
+              alert('Registration failed in database: ' + err.message);
+            }
           }, 800);
         }
       }, (index + 1) * 600);
@@ -359,7 +349,7 @@ export default function FileFIR() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black tracking-tight mb-1">
-            File FIR
+            Draft & File FIR
           </h1>
           <p className={`text-xs ${T.muted(dark)}`}>
             Register validated complaint petitions directly as official, legally compliant FIRs.
@@ -617,7 +607,7 @@ export default function FileFIR() {
                     <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-start gap-2.5 text-xs font-semibold">
                       <span className="text-sm">⚠️</span>
                       <div>
-                        <p className="font-bold mb-1">Procedural Blockers Found</p>
+                        <p className="font-bold mb-1">Procedural Mistakes Found</p>
                         <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
                           {selectedPetition.blockers.map((b, i) => (
                             <li key={i}>{b}</li>

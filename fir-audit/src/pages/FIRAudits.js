@@ -2,6 +2,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
+import { runPetitionPipeline, createPetition } from '../api/petition';
 
 const SAMPLE_FILES = [
   {
@@ -66,97 +67,78 @@ export default function FIRAudits() {
 
   const formatBytes = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`;
 
-  /* ── Simulate audit pipeline ──────────────── */
-  const runAudit = () => {
+  /* ── Integrate petition pipeline ──────────── */
+  const runAudit = async () => {
     if (!selectedFile) return;
     setStage('processing');
     setDoneStep(0);
-    PROCESSING_STEPS.forEach((_, i) => {
+
+    // Start UI progress simulation for visual feedback
+    const step1Timer = setTimeout(() => setDoneStep(1), 1000);
+    const step2Timer = setTimeout(() => setDoneStep(2), 2500);
+
+    try {
+      const result = await runPetitionPipeline(selectedFile);
+      
+      // Stop the timers and complete step progress
+      clearTimeout(step1Timer);
+      clearTimeout(step2Timer);
+      setDoneStep(3);
+
+      const newId = `PET-2026-${Math.floor(100 + Math.random() * 900)}`;
+      const petNo = `PET/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
+      
+      // Use extracted metadata or fallback
+      const complainant = result.metadata?.complainant || 'Unknown';
+      const accused = result.metadata?.accused || 'Unknown';
+      const sections = result.metadata?.sections || [];
+      const blockers = result.step3Output?.missing_fields || [];
+      const valid = result.step3Output?.valid ?? true;
+
+      // Calculate score based on missing fields
+      const score = valid ? 95 : Math.max(40, 90 - (blockers.length * 15));
+
+      const newPetition = {
+        id: newId,
+        petitionNo: petNo,
+        date: 'Just now',
+        complainant: complainant,
+        accused: accused,
+        sections: sections.length > 0 ? sections : ['BNS 303 (Theft)'],
+        score: score,
+        status: 'Pending Filing',
+        blockers: blockers,
+        sourceFile: selectedFile.name,
+        step1Output: result.step1Output,
+        step2Output: result.step2Output,
+        step3Output: result.step3Output,
+        metadata: result.metadata
+      };
+
+      // Save directly to MongoDB
+      await createPetition(newPetition);
+
       setTimeout(() => {
-        setDoneStep(i + 1);
-        if (i === PROCESSING_STEPS.length - 1) {
-          setTimeout(() => {
-            // Save scanned report to localStorage
-            const currentData = localStorage.getItem('scanned_petitions');
-            let list = [];
-            
-            const SEED_PETITIONS = [
-              {
-                id: 'PET-2026-001',
-                petitionNo: 'PET/HYD/2026/001',
-                date: 'Yesterday, 14:32',
-                complainant: 'K. Raghunath Prasad',
-                accused: 'G. Venkatesh & Partners',
-                sections: ['BNS 318 (Cheating)', 'BNS 336 (Forgery)'],
-                score: 94,
-                status: 'Pending Filing',
-                blockers: [],
-                sourceFile: 'complaint_raghunath_signed.pdf'
-              },
-              {
-                id: 'PET-2026-002',
-                petitionNo: 'PET/HYD/2026/002',
-                date: 'Yesterday, 10:15',
-                complainant: 'M. Sridevi',
-                accused: 'M. Rajender',
-                sections: ['BNS 84 (Dowry Harassment)'],
-                score: 68,
-                status: 'Pending Filing',
-                blockers: ['Victim statement date mismatch', 'No list of items attached'],
-                sourceFile: 'sridevi_complaint_scan.jpg'
-              },
-              {
-                id: 'PET-2026-003',
-                petitionNo: 'PET/HYD/2026/003',
-                date: '10 Jun 2026',
-                complainant: 'Syed Rahmathullah',
-                accused: 'Unknown intruder',
-                sections: ['BNS 303 (Theft)', 'BNS 331 (House-trespass)'],
-                score: 97,
-                status: 'FIR Filed',
-                firNo: 'FIR/HYD/226/104',
-                filedAt: '10 Jun 2026, 16:40',
-                blockers: [],
-                sourceFile: 'syed_theft_complaint.docx'
-              }
-            ];
-
-            if (currentData) {
-              list = JSON.parse(currentData);
-            } else {
-              list = SEED_PETITIONS;
-            }
-
-            const newId = `PET-2026-${Math.floor(100 + Math.random() * 900)}`;
-            const petNo = `PET/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
-            const isSample = selectedFile.name.includes('sample');
-            
-            const newPetition = {
-              id: newId,
-              petitionNo: petNo,
-              date: 'Just now',
-              complainant: isSample ? 'Ravi Kumar Sharma' : 'G. Laxman Rao',
-              accused: isSample ? 'Unknown (2 persons)' : 'K. Ramaswamy',
-              sections: isSample 
-                ? ['BNS 318 (Cheating)', 'BNS 120B (Criminal Conspiracy)'] 
-                : ['BNS 303 (Theft)'],
-              score: isSample ? 87 : 95,
-              status: 'Pending Filing',
-              blockers: isSample 
-                ? ['Forensic Lab ID not attached to evidence log', 'Date of occurrence not in DD/MM/YYYY format'] 
-                : [],
-              sourceFile: selectedFile.name
-            };
-
-            // Prepend new petition
-            list.unshift(newPetition);
-            localStorage.setItem('scanned_petitions', JSON.stringify(list));
-            setLastScannedPetition(newPetition);
-            setStage('done');
-          }, 500);
+        const currentData = localStorage.getItem('scanned_petitions');
+        let list = [];
+        if (currentData) {
+          list = JSON.parse(currentData);
         }
-      }, (i + 1) * 900);
-    });
+        list.unshift(newPetition);
+        localStorage.setItem('scanned_petitions', JSON.stringify(list));
+        window.dispatchEvent(new Event('storage'));
+
+        setLastScannedPetition(newPetition);
+        setStage('done');
+      }, 500);
+    } catch (err) {
+      clearTimeout(step1Timer);
+      clearTimeout(step2Timer);
+      console.error(err);
+      alert('Scanning failed: ' + (err.response?.data?.message || err.message));
+      setStage('idle');
+      setDoneStep(0);
+    }
   };
 
   const reset = () => {
@@ -168,9 +150,9 @@ export default function FIRAudits() {
 
   /* ── Score colour ─────────────────────────── */
   const scoreColor = (s) => {
-    if (s >= 90) return { ring: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Compliant' };
+    if (s >= 90) return { ring: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Accurate' };
     if (s >= 70) return { ring: 'text-amber-500',   bg: 'bg-amber-500/10',   label: 'Needs Review' };
-    return              { ring: 'text-red-500',      bg: 'bg-red-500/10',     label: 'Non-Compliant' };
+    return              { ring: 'text-red-500',      bg: 'bg-red-500/10',     label: 'Has Mistakes' };
   };
 
   return (
@@ -178,9 +160,9 @@ export default function FIRAudits() {
 
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-black tracking-tight mb-1">Scan New Petition Document</h1>
+        <h1 className="text-2xl font-black tracking-tight mb-1">Check New Petition</h1>
         <p className={`text-xs ${T.muted(dark)}`}>
-          Upload a petition document — AI will extract details, translate to English, and validate compliance under BNSS guidelines.
+          Upload a petition document — AI will extract details, translate to English, and check for errors under BNSS guidelines.
         </p>
       </div>
 
@@ -237,7 +219,7 @@ export default function FIRAudits() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold truncate">{selectedFile.name}</p>
-                  <p className={`text-[10px] ${T.muted(dark)}`}>{formatBytes(selectedFile.size)} · ready to audit</p>
+                  <p className={`text-[10px] ${T.muted(dark)}`}>{formatBytes(selectedFile.size)} · ready to check</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -245,7 +227,7 @@ export default function FIRAudits() {
                   onClick={runAudit}
                   variant="primary"
                 >
-                  Run Audit →
+                  Check Petition →
                 </FIRButton>
                 <button
                   onClick={reset}
@@ -304,8 +286,22 @@ export default function FIRAudits() {
         <FIRCard dark={dark} className="space-y-6">
           <div className="text-center">
             <div className="text-2xl mb-2">🤖</div>
-            <h3 className="font-black text-base">AI Audit in Progress</h3>
-            <p className={`text-[11px] mt-1 ${T.muted(dark)}`}>{selectedFile?.name}</p>
+            <h3 className="font-black text-base">AI Checking in Progress</h3>
+            <p className={`text-[11px] mt-1 mb-4 ${T.muted(dark)}`}>{selectedFile?.name}</p>
+          </div>
+
+          {/* Progress Bar & Percentage */}
+          <div className="max-w-md mx-auto">
+            <div className="flex items-center justify-between text-[11px] font-bold mb-1.5">
+              <span className={T.muted(dark)}>Overall Progress</span>
+              <span className="text-blue-500 font-black">{Math.round((doneStep / PROCESSING_STEPS.length) * 100)}%</span>
+            </div>
+            <div className={`w-full h-2 rounded-full overflow-hidden ${dark ? 'bg-white/10' : 'bg-black/10'}`}>
+              <div 
+                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full transition-all duration-500 ease-out" 
+                style={{ width: `${(doneStep / PROCESSING_STEPS.length) * 100}%` }}
+              />
+            </div>
           </div>
 
           <div className="space-y-3 max-w-md mx-auto">
@@ -359,7 +355,9 @@ export default function FIRAudits() {
                     {sc.label}
                   </span>
                 </div>
-                <p className={`text-[10px] font-mono ${T.muted(dark)}`}>{petition.petitionNo} · {selectedFile?.name}</p>
+                <p className={`text-[10px] font-mono ${T.muted(dark)}`}>
+                  {petition.petitionNo} · {selectedFile?.name}
+                </p>
               </div>
               {/* Score ring */}
               <div className={`text-3xl font-black ${sc.ring}`}>
@@ -399,14 +397,14 @@ export default function FIRAudits() {
               {/* Blockers */}
               <div>
                 <p className={`text-[9px] font-black uppercase tracking-widest mb-3 ${T.muted(dark)}`}>
-                  Procedural Blockers ({petition.blockers.length})
+                  Mistakes / Warnings ({petition.blockers.length})
                 </p>
                 {petition.blockers.length === 0 ? (
                   <div className="flex items-center gap-2 text-emerald-500 text-xs font-bold">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    No blockers — Petition is ready to file FIR
+                    No mistakes — Petition is ready to file FIR
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -430,7 +428,7 @@ export default function FIRAudits() {
                       variant="solid"
                       className="flex-1"
                     >
-                      👉 Go to Blocker Flags
+                      👉 Go to Mistakes / Warnings
                     </FIRButton>
                   ) : (
                     <FIRButton
@@ -478,7 +476,7 @@ export default function FIRAudits() {
             {[
               ['Gemini Vision OCR',     'Online'],
               ['BNS / IPC Mapper',      'Active'],
-              ['BNSS Compliance Check', 'Active'],
+              ['BNSS Procedural Check', 'Active'],
               ['ICJS Database Sync',    'Configured'],
             ].map(([name, status]) => (
               <li key={name} className="flex justify-between">
