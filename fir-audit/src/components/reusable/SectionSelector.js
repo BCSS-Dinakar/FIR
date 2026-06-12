@@ -1,14 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getAllBnsSections } from '../../api/petition';
 
 export default function SectionSelector({ 
   dark, 
   sections = [], 
   onChange, 
-  recommendedSections = [], 
-  allBnsSections = [] 
+  recommendedSections = [],
+  petitionId
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [bnsData, setBnsData] = useState({ recommended: [], other: [] });
+  const [loading, setLoading] = useState(false);
+
+  const fetchSections = async (search = '') => {
+    setLoading(true);
+    try {
+      const res = await getAllBnsSections(search, recommendedSections, petitionId);
+      if (res.success) {
+        setBnsData({ recommended: res.recommended, other: res.other });
+      }
+    } catch (err) {
+      console.error('Failed to fetch BNS sections:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenDropdown = () => {
+    if (!dropdownOpen) {
+      setDropdownOpen(true);
+      fetchSections(searchQuery);
+    } else {
+      setDropdownOpen(false);
+    }
+  };
+
 
   const toggleSection = (code) => {
     if (sections.includes(code)) {
@@ -17,6 +44,16 @@ export default function SectionSelector({
       onChange([...sections, code]);
     }
   };
+
+  useEffect(() => {
+    if (dropdownOpen) {
+      const timeoutId = setTimeout(() => {
+        fetchSections(searchQuery);
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, dropdownOpen]);
 
   const T = {
     muted: (d) => d ? 'text-white/50' : 'text-black/50',
@@ -30,7 +67,7 @@ export default function SectionSelector({
       
       {/* Clickable box displaying active sections */}
       <div 
-        onClick={() => setDropdownOpen(!dropdownOpen)}
+        onClick={handleOpenDropdown}
         className={`w-full min-h-[38px] p-2.5 rounded-lg border text-xs font-semibold flex flex-wrap gap-1.5 items-center cursor-pointer transition-all ${
           dark 
             ? 'bg-white/[0.03] border-white/10 hover:border-blue-500/50' 
@@ -84,20 +121,27 @@ export default function SectionSelector({
               />
             </div>
 
+            {/* Loading Indicator */}
+            {loading && (
+              <div className="p-4 text-center text-[10px] font-bold text-gray-400 flex flex-col items-center justify-center gap-2">
+                <span className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                Loading BNS Sections...
+              </div>
+            )}
+
             {/* Section: Recommended Sections */}
-            {searchQuery === '' && recommendedSections.length > 0 && (
+            {!loading && searchQuery === '' && bnsData.recommended.length > 0 && (
               <div className="space-y-1.5">
                 <div className="text-[9px] font-black uppercase tracking-wider text-blue-500 flex items-center gap-1">
                   <span>⭐</span> Recommended (Auto-detected)
                 </div>
                 <div className="space-y-1">
-                  {recommendedSections.map(secCode => {
-                    const match = allBnsSections.find(x => x.code === secCode) || { code: secCode, desc: '' };
-                    const isSelected = sections.includes(secCode);
+                  {bnsData.recommended.map(match => {
+                    const isSelected = sections.includes(match.code);
                     return (
                       <div 
-                        key={secCode}
-                        onClick={() => toggleSection(secCode)}
+                        key={match.code}
+                        onClick={() => toggleSection(match.code)}
                         className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition-colors text-[11px] ${
                           isSelected
                             ? dark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'
@@ -122,20 +166,13 @@ export default function SectionSelector({
             )}
 
             {/* Section: General / Search Results List */}
-            <div className="space-y-1.5 pt-1.5 border-t border-gray-400/10">
-              <div className={`text-[9px] font-black uppercase tracking-wider ${T.muted(dark)}`}>
-                {searchQuery === '' ? 'Other BNS Sections' : 'Search Results'}
-              </div>
+            {!loading && (
+              <div className="space-y-1.5 pt-1.5 border-t border-gray-400/10">
+                <div className={`text-[9px] font-black uppercase tracking-wider ${T.muted(dark)}`}>
+                  {searchQuery === '' ? 'Other BNS Sections' : 'Search Results'}
+                </div>
               <div className="space-y-1">
-                {allBnsSections
-                  .filter(x => {
-                    if (searchQuery === '') {
-                      return !recommendedSections.includes(x.code);
-                    }
-                    return x.code.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           x.desc.toLowerCase().includes(searchQuery.toLowerCase());
-                  })
-                  .map(sec => {
+                {bnsData.other.map(sec => {
                     const isSelected = sections.includes(sec.code);
                     return (
                       <div 
@@ -162,6 +199,7 @@ export default function SectionSelector({
                   })}
               </div>
             </div>
+            )}
 
           </div>
         </>

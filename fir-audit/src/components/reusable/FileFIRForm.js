@@ -221,6 +221,7 @@ export default function FileFIRForm({
           sections={modalSections}
           onChange={setModalSections}
           recommendedSections={selectedPetition.sections}
+          petitionId={selectedPetition?.id}
           allBnsSections={allBnsSections}
         />
       </div>

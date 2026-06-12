@@ -147,6 +147,20 @@ export const getPetitionById = async (id) => {
   return response.data;
 };
 
+
+/**
+ * Fetches all available BNS sections from the backend (with optional search and recommended list).
+ */
+export const getAllBnsSections = async (search = '', recommended = [], petitionId = '') => {
+  const params = new URLSearchParams();
+  if (search) params.append('search', search);
+  if (recommended && recommended.length > 0) params.append('recommended', recommended.join(','));
+  if (petitionId) params.append('petitionId', petitionId);
+  
+  const response = await API.get(`/api/petitions/bns-sections?${params.toString()}`);
+  return response.data;
+};
+
 /**
  * Fetches petitions and stats for the Draft & File page.
  */

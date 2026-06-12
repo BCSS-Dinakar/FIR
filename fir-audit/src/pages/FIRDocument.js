@@ -5,20 +5,7 @@ import FIRCard from '../components/reusable/FIRCard';
 import SectionSelector from '../components/reusable/SectionSelector';
 import { getPetitionById, updatePetition, createFir } from '../api/petition';
 
-const ALL_BNS_SECTIONS = [
-  { code: 'BNS 318 (Cheating)', desc: 'Cheating and dishonestly inducing delivery of property' },
-  { code: 'BNS 120B (Criminal Conspiracy)', desc: 'Punishment of criminal conspiracy' },
-  { code: 'BNS 336 (Forgery)', desc: 'Forgery of valuable security, will, etc.' },
-  { code: 'BNS 84 (Dowry Harassment)', desc: 'Cruelty by husband or relatives of husband' },
-  { code: 'BNS 303 (Theft)', desc: 'Punishment for theft' },
-  { code: 'BNS 331 (House-trespass)', desc: 'Lurking house-trespass or house-breaking' },
-  { code: 'BNS 115 (Hurt)', desc: 'Voluntarily causing hurt' },
-  { code: 'BNS 103 (Murder)', desc: 'Punishment for murder' },
-  { code: 'BNS 351 (Assault)', desc: 'Assault or criminal force' },
-  { code: 'BNS 304 (Extortion)', desc: 'Punishment for extortion' },
-  { code: 'BNS 117 (Grievous Hurt)', desc: 'Voluntarily causing grievous hurt' },
-  { code: 'BNS 124 (Wrongful Restraint)', desc: 'Punishment for wrongful restraint' }
-];
+
 
 export default function FIRDocument() {
   const { id } = useParams();
@@ -83,6 +70,7 @@ export default function FIRDocument() {
       try {
         const p = await getPetitionById(id);
         setPetition(p);
+
 
         // Parse sections
         setModalSections(p.sections || []);
@@ -601,7 +589,8 @@ export default function FIRDocument() {
                   sections={modalSections}
                   onChange={setModalSections}
                   recommendedSections={petition?.sections || []}
-                  allBnsSections={ALL_BNS_SECTIONS}
+                  petitionId={petition?.id || id}
+
                 />
               </div>
             )}

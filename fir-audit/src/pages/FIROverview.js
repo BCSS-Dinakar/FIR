@@ -6,20 +6,7 @@ import FileFIRForm from '../components/reusable/FileFIRForm';
 import { getFIRStatusBoard, updatePetition, createFir } from '../api/petition';
 import { useGlobals } from '../context/GlobalsContext';
 
-const ALL_BNS_SECTIONS = [
-  { code: 'BNS 318 (Cheating)', desc: 'Cheating and dishonestly inducing delivery of property' },
-  { code: 'BNS 120B (Criminal Conspiracy)', desc: 'Punishment of criminal conspiracy' },
-  { code: 'BNS 336 (Forgery)', desc: 'Forgery of valuable security, will, etc.' },
-  { code: 'BNS 84 (Dowry Harassment)', desc: 'Cruelty by husband or relatives of husband' },
-  { code: 'BNS 303 (Theft)', desc: 'Punishment for theft' },
-  { code: 'BNS 331 (House-trespass)', desc: 'Lurking house-trespass or house-breaking' },
-  { code: 'BNS 115 (Hurt)', desc: 'Voluntarily causing hurt' },
-  { code: 'BNS 103 (Murder)', desc: 'Punishment for murder' },
-  { code: 'BNS 351 (Assault)', desc: 'Assault or criminal force' },
-  { code: 'BNS 304 (Extortion)', desc: 'Punishment for extortion' },
-  { code: 'BNS 117 (Grievous Hurt)', desc: 'Voluntarily causing grievous hurt' },
-  { code: 'BNS 124 (Wrongful Restraint)', desc: 'Punishment for wrongful restraint' }
-];
+
 
 export default function FIROverview() {
   const { dark } = useGlobals();
@@ -586,7 +573,7 @@ export default function FIROverview() {
                     modalSections={modalSections}
                     setModalSections={setModalSections}
                     selectedPetition={selectedPetition}
-                    allBnsSections={ALL_BNS_SECTIONS}
+
                   />
 
                   {/* Modal Action buttons */}

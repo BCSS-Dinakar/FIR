@@ -374,6 +374,70 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/petitions/bns-sections
+ * @desc    Get the list of all available BNS sections
+ * @access  Public
+ */
+router.get('/bns-sections', async (req, res) => {
+  try {
+    const ALL_BNS_SECTIONS = [
+      { code: 'BNS 318 (Cheating)', desc: 'Cheating and dishonestly inducing delivery of property' },
+      { code: 'BNS 120B (Criminal Conspiracy)', desc: 'Punishment of criminal conspiracy' },
+      { code: 'BNS 336 (Forgery)', desc: 'Forgery of valuable security, will, etc.' },
+      { code: 'BNS 84 (Dowry Harassment)', desc: 'Cruelty by husband or relatives of husband' },
+      { code: 'BNS 303 (Theft)', desc: 'Punishment for theft' },
+      { code: 'BNS 331 (House-trespass)', desc: 'Lurking house-trespass or house-breaking' },
+      { code: 'BNS 115 (Hurt)', desc: 'Voluntarily causing hurt' },
+      { code: 'BNS 103 (Murder)', desc: 'Punishment for murder' },
+      { code: 'BNS 351 (Assault)', desc: 'Assault or criminal force' },
+      { code: 'BNS 304 (Extortion)', desc: 'Punishment for extortion' },
+      { code: 'BNS 117 (Grievous Hurt)', desc: 'Voluntarily causing grievous hurt' },
+      { code: 'BNS 124 (Wrongful Restraint)', desc: 'Punishment for wrongful restraint' }
+    ];
+    const { search, recommended, petitionId } = req.query;
+
+    if (petitionId) {
+      const petition = await Petition.findOne({ id: petitionId });
+      if (petition) {
+        console.log("Step 2 Output:", petition.step2Output);
+      }
+    }
+
+    let filtered = ALL_BNS_SECTIONS;
+    if (search) {
+      const s = search.toLowerCase();
+      filtered = filtered.filter(x => x.code.toLowerCase().includes(s) || x.desc.toLowerCase().includes(s));
+    }
+
+    let recommendedList = [];
+    if (recommended) {
+      recommendedList = recommended.split(',');
+    }
+
+    const recommendedSections = [];
+    const otherSections = [];
+
+    filtered.forEach(sec => {
+      if (recommendedList.includes(sec.code)) {
+        recommendedSections.push(sec);
+      } else {
+        otherSections.push(sec);
+      }
+    });
+
+    return res.status(200).json({ 
+      success: true, 
+      recommended: recommendedSections, 
+      other: otherSections 
+    });
+  } catch (error) {
+    console.error('Fetch BNS sections error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
+/**
  * @route   GET /api/petitions/:id
  * @desc    Get a single petition by its custom id (returns full details)
  * @access  Public
