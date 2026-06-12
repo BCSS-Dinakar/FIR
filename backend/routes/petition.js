@@ -100,13 +100,56 @@ router.get('/mistakesandwarnings', async (req, res) => {
     ]);
     const activeMistakes = activeMistakesCountResult[0]?.total || 0;
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const resolvedTodayCount = await Petition.countDocuments({
+      $or: [
+        { blockers: { $exists: false } },
+        { blockers: { $size: 0 } }
+      ],
+      updatedAt: { $gte: startOfToday },
+      $expr: { $ne: ["$createdAt", "$updatedAt"] }
+    });
+
+    const resolutionStats = await Petition.aggregate([
+      {
+        $match: {
+          $or: [
+            { blockers: { $exists: false } },
+            { blockers: { $size: 0 } }
+          ],
+          $expr: { $ne: ["$createdAt", "$updatedAt"] }
+        }
+      },
+      {
+        $project: {
+          diffMs: { $subtract: ["$updatedAt", "$createdAt"] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          avgDiffMs: { $avg: "$diffMs" }
+        }
+      }
+    ]);
+
+    let avgResolutionTime = "--"; // Realistic default fallback
+    if (resolutionStats.length > 0 && resolutionStats[0].avgDiffMs) {
+      const avgMinutes = Math.round(resolutionStats[0].avgDiffMs / (1000 * 60));
+      avgResolutionTime = `${avgMinutes} min`;
+    }
+
+    const resolvedToday = resolvedTodayCount.toString();
+
     return res.status(200).json({
       success: true,
       petitions: formatted,
       stats: {
         activeMistakes,
-        avgResolutionTime: "47 min",
-        resolvedToday: "11"
+        avgResolutionTime,
+        resolvedToday
       }
     });
   } catch (error) {
@@ -137,13 +180,13 @@ router.get('/analytics', async (req, res) => {
 
     const User = require('../models/User');
     const users = await User.find({}, 'name rank station badge');
-    
+
     const officers = users.map((user) => {
       const trend = null;
 
       const parts = user.name.replace(/^(Insp\.|Sub-Insp\.|Asst\.|Insp|SI|ASI|DSP|Constable)\.?\s+/i, '').split(' ');
-      const initials = parts.length >= 2 
-        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() 
+      const initials = parts.length >= 2
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
         : user.name.substring(0, 2).toUpperCase();
 
       const colors = [
@@ -276,7 +319,7 @@ router.get('/firstatusboard', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const filter = {};
-    
+
     // Filter by status (e.g., 'Pending Filing', 'FIR Filed')
     if (req.query.status) {
       filter.status = req.query.status;
@@ -304,7 +347,7 @@ router.get('/', async (req, res) => {
           { petitionNo: searchRegex }
         ]
       };
-      
+
       // Merge search filter with existing filters
       if (filter.$or) {
         // If there's already an $or filter (from hasBlockers=false), wrap them in an $and
@@ -320,7 +363,7 @@ router.get('/', async (req, res) => {
     }
 
     const petitions = await Petition.find(filter).select('id petitionNo date complainant accused sections score status blockers sourceFile firNo filedAt district policeStation gdNumber incidentDate incidentTime occurrencePlace complainantRelative complainantPhone complainantAddress incidentFacts createdAt updatedAt').sort({ createdAt: -1 });
-    
+
     const formattedPetitions = petitions.map(p => formatPetition(p));
 
     return res.status(200).json(formattedPetitions);
@@ -461,7 +504,7 @@ router.post('/pipeline', upload.single('file'), async (req, res) => {
 
     // Save directly to MongoDB
     await newPetition.save();
-    
+
     // Send final result step
     res.write(JSON.stringify({ step: 4, status: 'completed', result: formatPetition(newPetition) }) + '\n');
     res.end();
