@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FileFIRForm from '../components/reusable/FileFIRForm';
-import { getPetitions, updatePetition, createFir } from '../api/petition';
+import { getPetitions, updatePetition, createFir, getPetitionById } from '../api/petition';
 
 
 
@@ -28,7 +28,8 @@ export default function FileFIR() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTab, setFilterTab] = useState('All'); // All | Pending | Filed
   const [selectedPetition, setSelectedPetition] = useState(null);
-  
+  const [viewReportPetition, setViewReportPetition] = useState(null);
+
   // Registration modal states
   const [modalStage, setModalStage] = useState('idle'); // idle | registering | success
   const [modalLogs, setModalLogs] = useState([]);
@@ -57,14 +58,13 @@ export default function FileFIR() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(3);
-  
+
   // Load data from backend database
   useEffect(() => {
     const loadPetitions = async () => {
       try {
-        const data = await getPetitions();
+        const data = await getPetitions({ hasBlockers: 'false' });
         setPetitions(data);
-        localStorage.setItem('scanned_petitions', JSON.stringify(data));
       } catch (err) {
         console.error('Failed to load petitions:', err);
       }
@@ -76,11 +76,6 @@ export default function FileFIR() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterTab]);
-
-  const saveToLocalStorage = (newPetitions) => {
-    localStorage.setItem('scanned_petitions', JSON.stringify(newPetitions));
-    setPetitions(newPetitions);
-  };
 
   const T = {
     muted: (d) => d ? 'text-white/50' : 'text-black/50',
@@ -102,14 +97,11 @@ export default function FileFIR() {
   };
 
   const filteredPetitions = petitions.filter(p => {
-    // Skip petitions with active blockers (they go to the Blockers page)
-    if (p.blockers && p.blockers.length > 0) return false;
-
-    const matchesSearch = 
+    const matchesSearch =
       p.complainant.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.accused.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.petitionNo.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
     if (filterTab === 'Pending') {
       return matchesSearch && p.status === 'Pending Filing';
     }
@@ -136,41 +128,57 @@ export default function FileFIR() {
     setCurrentPage(1);
   };
 
-  const handleOpenRegistration = (petition) => {
-    setSelectedPetition(petition);
-    setModalSections(petition.sections);
-    
-    // Seed with realistic defaults and values from the scanned petition
-    setFormData({
-      district: 'Hyderabad',
-      policeStation: 'PS/HYD/04',
-      gdNumber: `GD-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      incidentDate: new Date().toISOString().substring(0, 10),
-      incidentTime: '12:00',
-      distanceDirection: '3 km South',
-      beatNumber: 'Beat No. 4',
-      occurrencePlace: 'Banjara Hills Road No 4, Hyderabad',
-      complainant: petition.complainant,
-      complainantRelative: 'K. Srinivasa Rao',
-      nationality: 'Indian',
-      complainantPhone: '9876543210',
-      complainantAddress: 'Flat 202, Green Meadows, Hyderabad',
-      accused: petition.accused,
-      accusedCount: petition.accused.includes('2 persons') ? 2 : 1,
-      accusedDescription: petition.accused.includes('2 persons') ? 'Unknown 2 persons, height approx 5\'8"' : 'Identified accused face matching record',
-      incidentFacts: `A formal complaint petition was uploaded regarding BNS sections: ${petition.sections.join(', ')} alleging misconduct/offence by ${petition.accused} as reported by ${petition.complainant}. Compliance checks completed with a score of ${petition.score}/100.`
-    });
-    
-    setModalStage('idle');
-    setModalLogs([]);
-    setGeneratedFIRNo('');
+  const handleOpenRegistration = async (petition) => {
+    try {
+      const fullPetition = await getPetitionById(petition.id);
+      setSelectedPetition(fullPetition);
+      setModalSections(fullPetition.sections || []);
+
+      // Seed with realistic defaults and values from the scanned petition
+      setFormData({
+        district: 'Hyderabad',
+        policeStation: 'PS/HYD/04',
+        gdNumber: `GD-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        incidentDate: new Date().toISOString().substring(0, 10),
+        incidentTime: '12:00',
+        distanceDirection: '3 km South',
+        beatNumber: 'Beat No. 4',
+        occurrencePlace: 'Banjara Hills Road No 4, Hyderabad',
+        complainant: fullPetition.complainant || '',
+        complainantRelative: 'K. Srinivasa Rao',
+        nationality: 'Indian',
+        complainantPhone: '9876543210',
+        complainantAddress: 'Flat 202, Green Meadows, Hyderabad',
+        accused: fullPetition.accused || '',
+        accusedCount: (fullPetition.accused && fullPetition.accused.includes('2 persons')) ? 2 : 1,
+        accusedDescription: (fullPetition.accused && fullPetition.accused.includes('2 persons')) ? 'Unknown 2 persons, height approx 5\'8"' : 'Identified accused face matching record',
+        incidentFacts: `A formal complaint petition was uploaded regarding BNS sections: ${(fullPetition.sections || []).join(', ')} alleging misconduct/offence by ${fullPetition.accused || 'Unknown'} as reported by ${fullPetition.complainant || 'Unknown'}. Compliance checks completed with a score of ${fullPetition.score || 0}/100.`
+      });
+
+      setModalStage('idle');
+      setModalLogs([]);
+      setGeneratedFIRNo('');
+    } catch (err) {
+      console.error('Failed to load petition details:', err);
+      alert('Failed to load petition details. Please try again.');
+    }
+  };
+
+  const handleOpenReport = async (petition) => {
+    try {
+      const fullPetition = await getPetitionById(petition.id);
+      setViewReportPetition(fullPetition);
+    } catch (err) {
+      console.error('Failed to load petition report:', err);
+      alert('Failed to load report. Please try again.');
+    }
   };
 
   const runRegistration = () => {
     if (!selectedPetition) return;
     setModalStage('registering');
     setModalLogs([]);
-    
+
     const logs = [
       'Verifying Sec 173 BNSS parameters...',
       'Validating complainant signature presence...',
@@ -187,7 +195,7 @@ export default function FileFIR() {
           setTimeout(async () => {
             const firNumber = `FIR/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
             setGeneratedFIRNo(firNumber);
-            
+
             const updatedPet = {
               ...selectedPetition,
               complainant: formData.complainant,
@@ -196,7 +204,7 @@ export default function FileFIR() {
               status: 'FIR Filed',
               firNo: firNumber,
               filedAt: new Date().toLocaleString(),
-              
+
               district: formData.district,
               policeStation: formData.policeStation,
               gdNumber: formData.gdNumber,
@@ -238,7 +246,7 @@ export default function FileFIR() {
               // 3. Update local UI state
               setSelectedPetition(updatedPet);
               const updatedList = petitions.map(p => p.id === selectedPetition.id ? updatedPet : p);
-              saveToLocalStorage(updatedList);
+              setPetitions(updatedList);
               setModalStage('success');
             } catch (err) {
               console.error('Failed to register FIR in database:', err);
@@ -360,9 +368,9 @@ export default function FileFIR() {
       {/* Grid Counters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { 
-            title: 'Total Scanned Petitions', 
-            val: petitions.length, 
+          {
+            title: 'Total Scanned Petitions',
+            val: petitions.length,
             colorClass: 'text-blue-500',
             bgIcon: (
               <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,9 +378,9 @@ export default function FileFIR() {
               </svg>
             )
           },
-          { 
-            title: 'Pending FIR Filing', 
-            val: countPending, 
+          {
+            title: 'Pending FIR Filing',
+            val: countPending,
             colorClass: 'text-amber-500',
             bgIcon: (
               <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -380,9 +388,9 @@ export default function FileFIR() {
               </svg>
             )
           },
-          { 
-            title: 'FIRs Registered & Synced', 
-            val: countFiled, 
+          {
+            title: 'FIRs Registered & Synced',
+            val: countFiled,
             colorClass: 'text-emerald-500',
             bgIcon: (
               <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -431,11 +439,10 @@ export default function FileFIR() {
             <button
               key={tab}
               onClick={() => setFilterTab(tab)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                filterTab === tab
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterTab === tab
                   ? 'bg-blue-600 text-white shadow-sm'
                   : dark ? 'text-white/60 hover:text-white' : 'text-black/60 hover:text-black'
-              }`}
+                }`}
             >
               {tab === 'Pending' ? 'Pending Filing' : tab === 'Filed' ? 'FIR Filed' : 'All Petitions'}
             </button>
@@ -507,6 +514,14 @@ export default function FileFIR() {
                       {p.status === 'FIR Filed' ? (
                         <div className="flex justify-end gap-1.5">
                           <FIRButton
+                            onClick={() => handleOpenReport(p)}
+                            variant="secondary"
+                            dark={dark}
+                            className="px-3 py-1.5 text-[11px]"
+                          >
+                            View Report
+                          </FIRButton>
+                          <FIRButton
                             onClick={() => {
                               setSelectedPetition(p);
                               setGeneratedFIRNo(p.firNo);
@@ -540,12 +555,11 @@ export default function FileFIR() {
         <div className={`px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t ${T.border(dark)}`}>
           <div className="flex items-center gap-3">
             <span className={`text-[11px] ${T.muted(dark)}`}>Showing {filteredPetitions.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + itemsPerPage, filteredPetitions.length)} of {filteredPetitions.length} entries</span>
-            <select 
-              value={itemsPerPage} 
+            <select
+              value={itemsPerPage}
               onChange={handleItemsPerPageChange}
-              className={`text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all ${
-                dark ? 'bg-brand-navy-950 border-white/10 text-white' : 'bg-white border-black/10 text-brand-charcoal'
-              }`}
+              className={`text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all ${dark ? 'bg-brand-navy-950 border-white/10 text-white' : 'bg-white border-black/10 text-brand-charcoal'
+                }`}
             >
               <option value={2}>2 per page</option>
               <option value={3}>3 per page</option>
@@ -555,21 +569,20 @@ export default function FileFIR() {
           </div>
           <div className="flex items-center gap-1.5">
             <FIRButton onClick={() => handlePageChange(currentPage - 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === 1 ? 'opacity-50 pointer-events-none' : ''}`}>Prev</FIRButton>
-            
+
             {Array.from({ length: totalPages }).map((_, i) => (
-              <button 
-                key={i} 
+              <button
+                key={i}
                 onClick={() => handlePageChange(i + 1)}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${
-                  currentPage === i + 1 
-                    ? 'bg-blue-500 text-white' 
+                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${currentPage === i + 1
+                    ? 'bg-blue-500 text-white'
                     : dark ? 'hover:bg-white/5' : 'hover:bg-black/5'
-                }`}
+                  }`}
               >
                 {i + 1}
               </button>
             ))}
-            
+
             <FIRButton onClick={() => handlePageChange(currentPage + 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === totalPages ? 'opacity-50 pointer-events-none' : ''}`}>Next</FIRButton>
           </div>
         </div>
@@ -579,7 +592,7 @@ export default function FileFIR() {
       {selectedPetition && modalStage !== 'none' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className={`w-full max-w-lg rounded-2xl border ${dark ? 'bg-brand-navy-900 border-white/10' : 'bg-white border-black/10 shadow-2xl'} overflow-hidden transition-all duration-300`}>
-            
+
             {/* Modal Header */}
             <div className={`px-6 py-4 border-b flex items-center justify-between ${T.border(dark)}`}>
               <h3 className="font-black text-sm flex items-center gap-2">
@@ -655,16 +668,15 @@ export default function FileFIR() {
                     <span className="absolute inset-0 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
                     <span className="text-xl">⚙️</span>
                   </div>
-                  
+
                   <div className="text-center">
                     <h4 className="font-bold text-sm">Filing FIR Record</h4>
                     <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>Submitting documents to Station Registry...</p>
                   </div>
 
                   {/* Progress logs console */}
-                  <div className={`w-full max-w-sm rounded-xl p-4 border font-mono text-[10px] space-y-1.5 h-36 overflow-y-auto leading-relaxed ${
-                    dark ? 'bg-black/40 border-white/5 text-blue-300' : 'bg-gray-50 border-black/5 text-blue-800'
-                  }`}>
+                  <div className={`w-full max-w-sm rounded-xl p-4 border font-mono text-[10px] space-y-1.5 h-36 overflow-y-auto leading-relaxed ${dark ? 'bg-black/40 border-white/5 text-blue-300' : 'bg-gray-50 border-black/5 text-blue-800'
+                    }`}>
                     {modalLogs.map((log, index) => (
                       <div key={index} className="flex gap-2">
                         <span className="text-emerald-500">✓</span>
@@ -687,7 +699,7 @@ export default function FileFIR() {
                   <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-3xl animate-bounce">
                     🎉
                   </div>
-                  
+
                   <div>
                     <h3 className="text-lg font-black text-emerald-500">FIR Registered Successfully!</h3>
                     <p className={`text-[11px] mt-1 ${T.muted(dark)}`}>
@@ -731,6 +743,206 @@ export default function FileFIR() {
                   </div>
                 </div>
               )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {viewReportPetition && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className={`w-full max-w-5xl h-[85vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl ${
+            dark ? 'bg-brand-navy-900 border-white/10 text-white' : 'bg-white border-black/10 text-brand-charcoal'
+          }`}>
+            
+            {/* Azure DevOps Header */}
+            <div className={`px-6 py-4 border-b flex items-start justify-between shrink-0 ${T.border(dark)}`}>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-blue-500 font-black">
+                  <span>Petition Record</span>
+                  <span>/</span>
+                  <span>{viewReportPetition.id}</span>
+                  <span>/</span>
+                  <span className={`px-2 py-0.5 rounded-full ${scoreBadgeColor(viewReportPetition.score)}`}>
+                    Score: {viewReportPetition.score}%
+                  </span>
+                </div>
+                <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
+                  <span>{viewReportPetition.firNo || viewReportPetition.petitionNo}</span>
+                  <span className="font-normal opacity-50">—</span>
+                  <span className="opacity-80">{viewReportPetition.complainant} vs {viewReportPetition.accused}</span>
+                </h2>
+              </div>
+              <button 
+                onClick={() => setViewReportPetition(null)}
+                className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  dark ? 'border-white/10 hover:bg-white/5 text-white/60 hover:text-white' : 'border-black/10 hover:bg-black/5 text-black/60 hover:text-black'
+                }`}
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {/* Azure DevOps Body (Scrollable Split-Pane) */}
+            <div className="flex-1 flex overflow-hidden min-h-0">
+              
+              {/* Left Pane (Main content - 70% width) */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 border-r border-gray-400/10">
+                
+                {/* 1. Legal Classification */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-blue-500">Applied Legal Sections (BNS)</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {viewReportPetition.sections && viewReportPetition.sections.map((sec) => (
+                      <span key={sec} className="bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2.5 py-1 rounded-md text-xs font-bold">
+                        {sec}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Narrative / Incident Facts */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-blue-500">Brief Facts of the Case / Allegations</h4>
+                  <div className={`p-4 rounded-xl border text-xs leading-relaxed font-sans whitespace-pre-wrap ${
+                    dark ? 'bg-black/30 border-white/5 text-white/95' : 'bg-gray-50 border-black/5 text-brand-charcoal'
+                  }`}>
+                    {viewReportPetition.incidentFacts || "No facts narration provided."}
+                  </div>
+                </div>
+
+                {/* 3. AI Pipeline Step 1 & 2 Collapsible Logs */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-blue-500">AI Processing Transcript (OCR & Translation)</h4>
+                  
+                  {/* Step 1 OCR */}
+                  {viewReportPetition.step1Output && (
+                    <div className={`rounded-xl border overflow-hidden ${dark ? 'border-white/5' : 'border-black/5'}`}>
+                      <details className="group">
+                        <summary className={`px-4 py-3 text-xs font-bold cursor-pointer select-none flex items-center justify-between ${
+                          dark ? 'bg-white/[0.02] hover:bg-white/[0.04]' : 'bg-black/[0.02] hover:bg-black/[0.04]'
+                        }`}>
+                          <span>1. Original Scanned OCR Document</span>
+                          <span className="text-[10px] opacity-40 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div className={`p-4 font-mono text-[10px] leading-relaxed overflow-x-auto whitespace-pre-wrap ${
+                          dark ? 'bg-black/40 text-green-400' : 'bg-gray-50 text-green-800'
+                        }`}>
+                          {viewReportPetition.step1Output}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+
+                  {/* Step 2 Translation */}
+                  {viewReportPetition.step2Output && (
+                    <div className={`rounded-xl border overflow-hidden ${dark ? 'border-white/5' : 'border-black/5'}`}>
+                      <details className="group">
+                        <summary className={`px-4 py-3 text-xs font-bold cursor-pointer select-none flex items-center justify-between ${
+                          dark ? 'bg-white/[0.02] hover:bg-white/[0.04]' : 'bg-black/[0.02] hover:bg-black/[0.04]'
+                        }`}>
+                          <span>2. Translated English Content</span>
+                          <span className="text-[10px] opacity-40 group-open:rotate-180 transition-transform">▼</span>
+                        </summary>
+                        <div className={`p-4 font-mono text-[10px] leading-relaxed overflow-x-auto whitespace-pre-wrap ${
+                          dark ? 'bg-black/40 text-blue-400' : 'bg-gray-50 text-blue-800'
+                        }`}>
+                          {viewReportPetition.step2Output}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Pane (Sidebar - 30% width) */}
+              <div className={`w-80 overflow-y-auto p-6 space-y-6 ${dark ? 'bg-white/[0.01]' : 'bg-black/[0.01]'}`}>
+                
+                {/* Status Properties */}
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <span className="block text-[10px] uppercase font-bold text-gray-400">Filing Status</span>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold mt-1 ${statusBadgeColor(viewReportPetition.status)}`}>
+                      {viewReportPetition.status}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] uppercase font-bold text-gray-400">Date Logged</span>
+                    <span className="block font-semibold mt-1">{viewReportPetition.date}</span>
+                  </div>
+
+                  {viewReportPetition.filedAt && (
+                    <div>
+                      <span className="block text-[10px] uppercase font-bold text-gray-400">Date Filed</span>
+                      <span className="block font-semibold mt-1">{viewReportPetition.filedAt}</span>
+                    </div>
+                  )}
+                </div>
+
+                <hr className="border-gray-400/10" />
+
+                {/* CCTNS Registry Fields */}
+                <div className="space-y-4 text-xs">
+                  <h3 className="text-[10px] uppercase font-black tracking-wider text-blue-500">CCTNS System Fields</h3>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">Police Station</span>
+                    <span className="block font-mono mt-1">{viewReportPetition.policeStation || 'PS/HYD/04'}</span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">District</span>
+                    <span className="block mt-1">{viewReportPetition.district || 'Hyderabad'}</span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">GD Entry Reference</span>
+                    <span className="block font-mono mt-1">{viewReportPetition.gdNumber || 'N/A'}</span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">Incident Timestamp</span>
+                    <span className="block mt-1">
+                      {viewReportPetition.incidentDate || 'N/A'} {viewReportPetition.incidentTime && `at ${viewReportPetition.incidentTime}`}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">Occurrence Place</span>
+                    <span className="block mt-1">{viewReportPetition.occurrencePlace || 'N/A'}</span>
+                  </div>
+                </div>
+
+                <hr className="border-gray-400/10" />
+
+                {/* Complainant profile */}
+                <div className="space-y-4 text-xs">
+                  <h3 className="text-[10px] uppercase font-black tracking-wider text-blue-500">Complainant Profile</h3>
+                  
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">Full Name</span>
+                    <span className="block mt-1 font-semibold">{viewReportPetition.complainant}</span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">Relative Reference</span>
+                    <span className="block mt-1">{viewReportPetition.complainantRelative || 'N/A'}</span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">Phone Contact</span>
+                    <span className="block mt-1">{viewReportPetition.complainantPhone || 'N/A'}</span>
+                  </div>
+
+                  <div>
+                    <span className="block text-[10px] font-bold text-gray-400">Permanent Address</span>
+                    <span className="block mt-1 leading-relaxed">{viewReportPetition.complainantAddress || 'N/A'}</span>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
 
           </div>

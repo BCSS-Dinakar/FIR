@@ -87,41 +87,11 @@ const navGroups = [
   },
 ];
 
-export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, T }) {
+export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, T, officer }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [officer, setOfficer] = useState(() => {
-    const saved = localStorage.getItem('logged_in_officer');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // fallback
-      }
-    }
-    return {
-      name: 'Insp. K. Shiva Kumar',
-      badge: 'TS-9923',
-      rank: 'Inspector',
-      station: 'PS/HYD/04'
-    };
-  });
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const saved = localStorage.getItem('logged_in_officer');
-      if (saved) {
-        try {
-          setOfficer(JSON.parse(saved));
-        } catch (e) {
-          // ignore
-        }
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  if (!officer) return null;
 
   const getInitials = (name) => {
     if (!name) return 'KS';
@@ -282,7 +252,6 @@ export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, 
             } catch (err) {
               console.error('Logout error:', err);
             }
-            localStorage.removeItem('logged_in_officer');
             navigate('/login');
           }}
           title={collapsed ? 'Sign Out' : undefined}

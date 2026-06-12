@@ -1,37 +1,22 @@
 import { useState } from 'react';
 import FIRCard from '../reusable/FIRCard';
 import FIRButton from '../reusable/FIRButton';
+import { updateProfile } from '../../api/auth';
+import { useGlobals } from '../../context/GlobalsContext';
 
-export default function ProfileSettings({ dark }) {
-  const officer = (() => {
-    const saved = localStorage.getItem('logged_in_officer');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // fallback
-      }
-    }
-    return {
-      name: 'Insp. K. Shiva Kumar',
-      badge: 'TS-9923',
-      rank: 'Inspector',
-      station: 'PS/HYD/04',
-      district: 'Hyderabad',
-      state: 'Telangana'
-    };
-  })();
+export default function ProfileSettings() {
+  const { dark, officer, setOfficer } = useGlobals();
 
   const [stationName, setStationName] = useState(
-    officer.station === 'PS/HYD/04'
+    officer?.station === 'PS/HYD/04'
       ? 'Hyderabad Central Police Station'
-      : `${officer.district || ''} Station (${officer.station || ''})`
+      : `${officer?.district || ''} Station (${officer?.station || ''})`
   );
-  const [stationCode, setStationCode] = useState(officer.station || 'PS/HYD/04');
+  const [stationCode, setStationCode] = useState(officer?.station || '');
   const [chiefOfficer, setChiefOfficer] = useState(
-    officer.rank === 'Inspector' && officer.name.includes('Shiva')
+    officer?.rank === 'Inspector' && officer?.name.includes('Shiva')
       ? 'ACP M. Srinivas'
-      : officer.name
+      : officer?.name || ''
   );
   const [zone, setZone] = useState('Central Zone');
   const [success, setSuccess] = useState(false);
@@ -41,22 +26,20 @@ export default function ProfileSettings({ dark }) {
     input: (d) => d ? 'bg-white/[0.03] border-white/10 text-white focus:border-blue-500' : 'bg-black/[0.02] border-black/10 text-brand-charcoal focus:border-blue-600',
   };
 
-  const handleSave = () => {
-    // Update logged in officer station code
-    const saved = localStorage.getItem('logged_in_officer');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        parsed.station = stationCode;
-        localStorage.setItem('logged_in_officer', JSON.stringify(parsed));
-        // Force header/sidebar reload by triggering a storage event or a light page refresh
-        window.dispatchEvent(new Event('storage'));
-      } catch (e) {
-        // fail silently
+  const handleSave = async () => {
+    try {
+      const data = await updateProfile({
+        station: stationCode
+      });
+      if (data && data.success && data.user) {
+        setOfficer(data.user);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
       }
+    } catch (err) {
+      console.error('Failed to save profile changes:', err);
+      alert('Failed to save profile changes: ' + (err.response?.data?.message || err.message));
     }
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
   };
 
   return (

@@ -1,22 +1,12 @@
 import FIRCard from '../reusable/FIRCard';
 
-export default function SectionBreakdown({ dark, petitions = [] }) {
+export default function SectionBreakdown({ dark, blockerCounts = {} }) {
   const T = {
     muted: (d) => d ? 'text-white/50' : 'text-black/50',
     border: (d) => d ? 'border-white/[0.06]' : 'border-black/[0.08]',
   };
 
-  // Group and count active blockers from all petitions
-  const blockerCounts = {};
-  let totalBlockerCount = 0;
-  petitions.forEach(p => {
-    if (p.blockers && p.blockers.length > 0) {
-      p.blockers.forEach(b => {
-        blockerCounts[b] = (blockerCounts[b] || 0) + 1;
-        totalBlockerCount++;
-      });
-    }
-  });
+  const totalBlockerCount = Object.values(blockerCounts).reduce((a, b) => a + b, 0);
 
   let data = [];
   if (totalBlockerCount > 0) {

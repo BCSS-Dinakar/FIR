@@ -103,12 +103,17 @@ ${content}`;
 /**
  * Main petition pipeline executing up to step 3.
  * @param {Object} file - Multer file object
+ * @param {Function} [onStep] - Optional callback for streaming step progress
  * @returns {Promise<Object>} Results of Step 1, 2, and 3
  */
-const runPetitionPipeline = async (file) => {
+const runPetitionPipeline = async (file, onStep) => {
   const filePath = file.path;
   const mimeType = file.mimetype;
 
+  // Step 1: Scan / Extract text
+  console.log(`[Pipeline Step 1] Scanning file content...`);
+  if (onStep) onStep({ step: 1, status: 'running', message: 'Scanning file content' });
+  
   let rawContent = '';
   if (mimeType.startsWith('image/')) {
     rawContent = await extractTextFromImage(filePath);
@@ -117,15 +122,32 @@ const runPetitionPipeline = async (file) => {
   } else {
     throw new Error('Unsupported file type. Please upload a plain text file or an image.');
   }
+  
+  if (onStep) onStep({ step: 1, status: 'completed', output: rawContent });
+  console.log(`[Pipeline Step 1] Completed scanning. Extracted ${rawContent.length} characters.`);
 
   // Step 2: Translate content to English
+  console.log(`[Pipeline Step 2] Translating petition content to English (Llama3.2)...`);
+  if (onStep) onStep({ step: 2, status: 'running', message: 'Translating petition content to English' });
+  
   const translated = await translateToEnglish(rawContent);
+  
+  if (onStep) onStep({ step: 2, status: 'completed', output: translated });
+  console.log(`[Pipeline Step 2] Completed translation.`);
 
   // Step 3: Validate translated petition content
+  console.log(`[Pipeline Step 3] Validating petition (BNS check)...`);
+  if (onStep) onStep({ step: 3, status: 'running', message: 'Validating petition' });
+  
   const validationResult = await validateFir(translated);
+  
+  if (onStep) onStep({ step: 3, status: 'completed', output: validationResult });
+  console.log(`[Pipeline Step 3] Completed validation.`);
 
   // Additional: Extract metadata details
+  console.log(`[Pipeline Step 3] Extracting petition metadata...`);
   const metadata = await extractMetadata(translated);
+  console.log(`[Pipeline Step 3] Completed metadata extraction.`);
 
   return {
     success: true,

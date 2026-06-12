@@ -46,6 +46,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'Hyderabad'
   },
+  themeModeUi: {
+    type: String,
+    default: 'dark'
+  },
+  sidebarCollapse: {
+    type: Boolean,
+    default: false
+  },
   lastLogin: {
     type: Date,
     default: null

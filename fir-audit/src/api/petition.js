@@ -2,17 +2,69 @@ import API from './api';
 
 /**
  * Sends a file to the backend pipeline to parse OCR, translate, validate, and extract metadata.
+ * Streams progress updates to the onChunk callback in real time.
  */
-export const runPetitionPipeline = async (file) => {
+export const runPetitionPipeline = async (file, onChunk) => {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await API.post('/api/petitions/pipeline', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+  const baseURL = API.defaults.baseURL || '';
+  const response = await fetch(`${baseURL}/api/petitions/pipeline`, {
+    method: 'POST',
+    body: formData,
   });
-  return response.data;
+
+  if (!response.ok) {
+    const errText = await response.text();
+    let errMessage = 'Pipeline request failed';
+    try {
+      const errJson = JSON.parse(errText);
+      errMessage = errJson.message || errMessage;
+    } catch (_) {}
+    throw new Error(errMessage);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalResult = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // Hold partial line in buffer
+
+    for (const line of lines) {
+      if (line.trim()) {
+        try {
+          const data = JSON.parse(line);
+          if (data.status === 'error') {
+            throw new Error(data.message);
+          }
+          if (data.step === 4 && data.status === 'completed') {
+            finalResult = data.result;
+          }
+          if (onChunk) {
+            onChunk(data);
+          }
+        } catch (e) {
+          if (e.message && !e.message.includes('JSON')) {
+            throw e;
+          }
+          console.error('Failed to parse NDJSON line:', line, e);
+        }
+      }
+    }
+  }
+
+  if (!finalResult) {
+    throw new Error('Pipeline completed without returning final result');
+  }
+
+  return finalResult;
 };
 
 /**
@@ -60,5 +112,37 @@ export const getFirs = async (params) => {
  */
 export const createFir = async (data) => {
   const response = await API.post('/api/firs', data);
+  return response.data;
+};
+
+/**
+ * Fetches data for the status board (all petitions and FIRs in one request).
+ */
+export const getFIRStatusBoard = async () => {
+  const response = await API.get('/api/petitions/firstatusboard');
+  return response.data;
+};
+
+/**
+ * Fetches lightweight, aggregate notification counts.
+ */
+export const getPetitionCounts = async () => {
+  const response = await API.get('/api/petitions/counts');
+  return response.data;
+};
+
+/**
+ * Fetches optimized data for the analytics pages (scores and grouped blocker counts).
+ */
+export const getFIRAnalytics = async () => {
+  const response = await API.get('/api/petitions/analytics');
+  return response.data;
+};
+
+/**
+ * Fetches a single petition by its custom id (returns full details).
+ */
+export const getPetitionById = async (id) => {
+  const response = await API.get(`/api/petitions/${id}`);
   return response.data;
 };

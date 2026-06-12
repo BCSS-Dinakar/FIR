@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { GlobalsProvider } from './context/GlobalsContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import FIRLayout from './layout/FIRLayout';
@@ -11,20 +12,22 @@ import FileFIR from './pages/FileFIR';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={<FIRLayout />}>
-          <Route index element={<FIROverview />} />
-          <Route path="audits" element={<FIRAudits />} />
-          <Route path="file-fir" element={<FileFIR />} />
-          <Route path="analytics" element={<FIRAnalytics />} />
-          <Route path="blockers" element={<FIRBlockers />} />
-          <Route path="settings" element={<FIRSettings />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <GlobalsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/dashboard" element={<FIRLayout />}>
+            <Route index element={<FIROverview />} />
+            <Route path="audits" element={<FIRAudits />} />
+            <Route path="file-fir" element={<FileFIR />} />
+            <Route path="analytics" element={<FIRAnalytics />} />
+            <Route path="blockers" element={<FIRBlockers />} />
+            <Route path="settings" element={<FIRSettings />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </GlobalsProvider>
   );
 }
 

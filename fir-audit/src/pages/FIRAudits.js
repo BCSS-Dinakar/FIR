@@ -6,18 +6,18 @@ import { runPetitionPipeline, createPetition } from '../api/petition';
 
 const SAMPLE_FILES = [
   {
-    name:  'sample_fir_complaint.txt',
+    name: 'sample_fir_complaint.txt',
     label: 'Cheating & Forgery Case',
-    desc:  'BNS 318 · BNS 120B · BNS 336',
-    icon:  '📄',
-    url:   '/samples/sample_fir_complaint.txt',
+    desc: 'BNS 318 · BNS 120B · BNS 336',
+    icon: '📄',
+    url: '/samples/sample_fir_complaint.txt',
   },
 ];
 
 const PROCESSING_STEPS = [
   { id: 1, label: 'Scanning file content', icon: '👁️' },
-  { id: 2, label: 'Changing to english',   icon: '🔤' },
-  { id: 3, label: 'Validating petition',   icon: '⚖️' },
+  { id: 2, label: 'Changing to english', icon: '🔤' },
+  { id: 3, label: 'Validating petition', icon: '⚖️' },
 ];
 
 
@@ -27,17 +27,17 @@ export default function FIRAudits() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const [dragActive, setDragActive]     = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [stage, setStage]               = useState('idle'); // idle | processing | done
-  const [doneStep, setDoneStep]         = useState(0);
+  const [stage, setStage] = useState('idle'); // idle | processing | done
+  const [doneStep, setDoneStep] = useState(0);
   const [lastScannedPetition, setLastScannedPetition] = useState(null);
 
   const T = {
-    card:    (d) => d ? 'bg-brand-navy-900 border-white/[0.06]' : 'bg-white border-black/[0.08] shadow-sm',
-    muted:   (d) => d ? 'text-white/50' : 'text-black/50',
-    border:  (d) => d ? 'border-white/[0.06]' : 'border-black/[0.08]',
-    input:   (d) => d ? 'bg-white/[0.03] border-white/10 text-white' : 'bg-black/[0.02] border-black/10 text-brand-charcoal',
+    card: (d) => d ? 'bg-brand-navy-900 border-white/[0.06]' : 'bg-white border-black/[0.08] shadow-sm',
+    muted: (d) => d ? 'text-white/50' : 'text-black/50',
+    border: (d) => d ? 'border-white/[0.06]' : 'border-black/[0.08]',
+    input: (d) => d ? 'bg-white/[0.03] border-white/10 text-white' : 'bg-black/[0.02] border-black/10 text-brand-charcoal',
     dropZone: (d, active) => {
       const base = 'border-2 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center transition-all cursor-pointer';
       if (active) return `${base} border-blue-500 bg-blue-500/10`;
@@ -65,79 +65,41 @@ export default function FIRAudits() {
     if (file) { setSelectedFile(file); setStage('idle'); setDoneStep(0); }
   };
 
-  const formatBytes = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`;
+  const formatBytes = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+
+  const isAuditingRef = useRef(false);
 
   /* ── Integrate petition pipeline ──────────── */
   const runAudit = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || isAuditingRef.current) return;
+    isAuditingRef.current = true;
     setStage('processing');
     setDoneStep(0);
 
-    // Start UI progress simulation for visual feedback
-    const step1Timer = setTimeout(() => setDoneStep(1), 1000);
-    const step2Timer = setTimeout(() => setDoneStep(2), 2500);
-
     try {
-      const result = await runPetitionPipeline(selectedFile);
-      
-      // Stop the timers and complete step progress
-      clearTimeout(step1Timer);
-      clearTimeout(step2Timer);
-      setDoneStep(3);
-
-      const newId = `PET-2026-${Math.floor(100 + Math.random() * 900)}`;
-      const petNo = `PET/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
-      
-      // Use extracted metadata or fallback
-      const complainant = result.metadata?.complainant || 'Unknown';
-      const accused = result.metadata?.accused || 'Unknown';
-      const sections = result.metadata?.sections || [];
-      const blockers = result.step3Output?.missing_fields || [];
-      const valid = result.step3Output?.valid ?? true;
-
-      // Calculate score based on missing fields
-      const score = valid ? 95 : Math.max(40, 90 - (blockers.length * 15));
-
-      const newPetition = {
-        id: newId,
-        petitionNo: petNo,
-        date: 'Just now',
-        complainant: complainant,
-        accused: accused,
-        sections: sections.length > 0 ? sections : ['BNS 303 (Theft)'],
-        score: score,
-        status: 'Pending Filing',
-        blockers: blockers,
-        sourceFile: selectedFile.name,
-        step1Output: result.step1Output,
-        step2Output: result.step2Output,
-        step3Output: result.step3Output,
-        metadata: result.metadata
-      };
-
-      // Save directly to MongoDB
-      await createPetition(newPetition);
+      const savedPetition = await runPetitionPipeline(selectedFile, (chunk) => {
+        if (chunk.status === 'completed') {
+          if (chunk.step === 1) {
+            setDoneStep(1);
+          } else if (chunk.step === 2) {
+            setDoneStep(2);
+          } else if (chunk.step === 3) {
+            setDoneStep(3);
+          }
+        }
+      });
 
       setTimeout(() => {
-        const currentData = localStorage.getItem('scanned_petitions');
-        let list = [];
-        if (currentData) {
-          list = JSON.parse(currentData);
-        }
-        list.unshift(newPetition);
-        localStorage.setItem('scanned_petitions', JSON.stringify(list));
-        window.dispatchEvent(new Event('storage'));
-
-        setLastScannedPetition(newPetition);
+        setLastScannedPetition(savedPetition);
         setStage('done');
       }, 500);
     } catch (err) {
-      clearTimeout(step1Timer);
-      clearTimeout(step2Timer);
       console.error(err);
-      alert('Scanning failed: ' + (err.response?.data?.message || err.message));
+      alert('Scanning failed: ' + (err.message || 'Unknown error occurred'));
       setStage('idle');
       setDoneStep(0);
+    } finally {
+      isAuditingRef.current = false;
     }
   };
 
@@ -151,8 +113,8 @@ export default function FIRAudits() {
   /* ── Score colour ─────────────────────────── */
   const scoreColor = (s) => {
     if (s >= 90) return { ring: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Accurate' };
-    if (s >= 70) return { ring: 'text-amber-500',   bg: 'bg-amber-500/10',   label: 'Needs Review' };
-    return              { ring: 'text-red-500',      bg: 'bg-red-500/10',     label: 'Has Mistakes' };
+    if (s >= 70) return { ring: 'text-amber-500', bg: 'bg-amber-500/10', label: 'Needs Review' };
+    return { ring: 'text-red-500', bg: 'bg-red-500/10', label: 'Has Mistakes' };
   };
 
   return (
@@ -188,9 +150,8 @@ export default function FIRAudits() {
             onClick={() => fileInputRef.current?.click()}
             className={T.dropZone(dark, dragActive)}
           >
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${
-              dragActive ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-500/10 text-blue-500'
-            }`}>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${dragActive ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-500/10 text-blue-500'
+              }`}>
               <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -252,7 +213,7 @@ export default function FIRAudits() {
                   key={s.name}
                   onClick={async () => {
                     try {
-                      const res  = await fetch(s.url);
+                      const res = await fetch(s.url);
                       const blob = await res.blob();
                       const file = new File([blob], s.name, { type: blob.type || 'text/plain' });
                       setSelectedFile(file);
@@ -262,11 +223,10 @@ export default function FIRAudits() {
                       alert('Could not load sample file.');
                     }
                   }}
-                  className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-left transition-all group ${
-                    dark
-                      ? 'bg-white/[0.02] border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5'
-                      : 'bg-black/[0.01] border-black/10 hover:border-blue-500/50 hover:bg-blue-50'
-                  }`}
+                  className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-left transition-all group ${dark
+                    ? 'bg-white/[0.02] border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5'
+                    : 'bg-black/[0.01] border-black/10 hover:border-blue-500/50 hover:bg-blue-50'
+                    }`}
                 >
                   <span className="text-xl">{s.icon}</span>
                   <div className="text-left">
@@ -297,8 +257,8 @@ export default function FIRAudits() {
               <span className="text-blue-500 font-black">{Math.round((doneStep / PROCESSING_STEPS.length) * 100)}%</span>
             </div>
             <div className={`w-full h-2 rounded-full overflow-hidden ${dark ? 'bg-white/10' : 'bg-black/10'}`}>
-              <div 
-                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full transition-all duration-500 ease-out" 
+              <div
+                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full transition-all duration-500 ease-out"
                 style={{ width: `${(doneStep / PROCESSING_STEPS.length) * 100}%` }}
               />
             </div>
@@ -306,24 +266,22 @@ export default function FIRAudits() {
 
           <div className="space-y-3 max-w-md mx-auto">
             {PROCESSING_STEPS.map((step, i) => {
-              const done    = doneStep > i;
+              const done = doneStep > i;
               const current = doneStep === i;
               return (
-                <div key={step.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  done    ? dark ? 'bg-emerald-500/10' : 'bg-emerald-50'    :
-                  current ? dark ? 'bg-blue-500/10'   : 'bg-blue-50'       :
-                            dark ? 'bg-white/[0.02]'  : 'bg-black/[0.015]'
-                }`}>
+                <div key={step.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${done ? dark ? 'bg-emerald-500/10' : 'bg-emerald-50' :
+                  current ? dark ? 'bg-blue-500/10' : 'bg-blue-50' :
+                    dark ? 'bg-white/[0.02]' : 'bg-black/[0.015]'
+                  }`}>
                   <span className="text-base shrink-0">
                     {done ? '✅' : current ? (
                       <span className="inline-block w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
                     ) : step.icon}
                   </span>
-                  <span className={`text-xs font-semibold ${
-                    done    ? 'text-emerald-500' :
-                    current ? 'text-blue-500'   :
-                    T.muted(dark)
-                  }`}>
+                  <span className={`text-xs font-semibold ${done ? 'text-emerald-500' :
+                    current ? 'text-blue-500' :
+                      T.muted(dark)
+                    }`}>
                     {step.label}
                   </span>
                 </div>
@@ -373,9 +331,9 @@ export default function FIRAudits() {
               <div className="space-y-3">
                 <p className={`text-[9px] font-black uppercase tracking-widest ${T.muted(dark)}`}>Extracted Details</p>
                 {[
-                  { label: 'Petition Reference',  val: petition.petitionNo },
-                  { label: 'Complainant',    val: petition.complainant },
-                  { label: 'Accused',        val: petition.accused },
+                  { label: 'Petition Reference', val: petition.petitionNo },
+                  { label: 'Complainant', val: petition.complainant },
+                  { label: 'Accused', val: petition.accused },
                 ].map((row) => (
                   <div key={row.label} className={`flex justify-between gap-4 text-xs py-2 border-b ${T.border(dark)}`}>
                     <span className={T.muted(dark)}>{row.label}</span>
@@ -474,10 +432,10 @@ export default function FIRAudits() {
           </h3>
           <ul className={`text-[11px] space-y-2 leading-relaxed ${T.muted(dark)}`}>
             {[
-              ['Gemini Vision OCR',     'Online'],
-              ['BNS / IPC Mapper',      'Active'],
+              ['Gemini Vision OCR', 'Online'],
+              ['BNS / IPC Mapper', 'Active'],
               ['BNSS Procedural Check', 'Active'],
-              ['ICJS Database Sync',    'Configured'],
+              ['ICJS Database Sync', 'Configured'],
             ].map(([name, status]) => (
               <li key={name} className="flex justify-between">
                 <span>{name}</span>

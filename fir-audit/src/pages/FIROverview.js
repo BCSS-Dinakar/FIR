@@ -1,13 +1,13 @@
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
-import { getPetitions, getFirs } from '../api/petition';
+import { getFIRStatusBoard } from '../api/petition';
+import { useGlobals } from '../context/GlobalsContext';
 
 export default function FIROverview() {
-  const { dark } = useOutletContext();
+  const { dark } = useGlobals();
   const navigate = useNavigate();
-
   const [petitions, setPetitions] = useState([]);
   const [firs, setFirs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,12 +18,11 @@ export default function FIROverview() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const petsData = await getPetitions();
-        const firsData = await getFirs();
-        setPetitions(petsData);
-        setFirs(firsData);
-        // Keep local cache synced
-        localStorage.setItem('scanned_petitions', JSON.stringify(petsData));
+        const data = await getFIRStatusBoard();
+        if (data && data.success) {
+          setPetitions(data.petitions || []);
+          setFirs(data.firs || []);
+        }
       } catch (err) {
         console.error('Failed to load overview data:', err);
       } finally {
@@ -31,19 +30,6 @@ export default function FIROverview() {
       }
     };
     fetchData();
-
-    const handleStorageChange = () => {
-      const saved = localStorage.getItem('scanned_petitions');
-      if (saved) {
-        try {
-          setPetitions(JSON.parse(saved));
-        } catch (e) {
-          // ignore
-        }
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(petitions.length / itemsPerPage));
@@ -83,8 +69,8 @@ export default function FIROverview() {
   // Compute live statistics
   const totalChecked = petitions.length;
   const pendingReview = petitions.filter(p => p.status === 'Pending Filing' && (!p.blockers || p.blockers.length === 0)).length;
-  const avgAccuracy = petitions.length > 0 
-    ? (petitions.reduce((acc, p) => acc + p.score, 0) / petitions.length).toFixed(1) + '%' 
+  const avgAccuracy = petitions.length > 0
+    ? (petitions.reduce((acc, p) => acc + p.score, 0) / petitions.length).toFixed(1) + '%'
     : '0%';
   const unresolvedMistakes = petitions.reduce((acc, p) => acc + (p.status !== 'FIR Filed' ? (p.blockers?.length || 0) : 0), 0);
 
@@ -98,7 +84,7 @@ export default function FIROverview() {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Page Title Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -109,7 +95,7 @@ export default function FIROverview() {
             Check petitions for errors and verify BNS sections before drafting FIRs.
           </p>
         </div>
-        <FIRButton 
+        <FIRButton
           onClick={() => navigate('/dashboard/audits')}
           variant="primary"
           icon={
@@ -125,9 +111,9 @@ export default function FIROverview() {
       {/* Grid Counters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { 
-            title: 'Petitions Checked', 
-            val: totalChecked, 
+          {
+            title: 'Petitions Checked',
+            val: totalChecked,
             change: 'From live station database',
             icon: (
               <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,9 +121,9 @@ export default function FIROverview() {
               </svg>
             )
           },
-          { 
-            title: 'Pending Review', 
-            val: pendingReview, 
+          {
+            title: 'Pending Review',
+            val: pendingReview,
             change: 'Ready for draft filing',
             icon: (
               <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -145,9 +131,9 @@ export default function FIROverview() {
               </svg>
             )
           },
-          { 
-            title: 'Average Accuracy Score', 
-            val: avgAccuracy, 
+          {
+            title: 'Average Accuracy Score',
+            val: avgAccuracy,
             change: 'Target strictness: High',
             icon: (
               <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -155,9 +141,9 @@ export default function FIROverview() {
               </svg>
             )
           },
-          { 
-            title: 'Unresolved Mistakes', 
-            val: unresolvedMistakes, 
+          {
+            title: 'Unresolved Mistakes',
+            val: unresolvedMistakes,
             change: 'Must be resolved',
             icon: (
               <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,9 +160,8 @@ export default function FIROverview() {
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-black">{item.val}</span>
               </div>
-              <span className={`text-[10px] font-semibold block ${
-                idx === 3 && unresolvedMistakes > 0 ? 'text-red-500 animate-pulse' : idx === 1 ? 'text-amber-500' : 'text-emerald-500'
-              }`}>
+              <span className={`text-[10px] font-semibold block ${idx === 3 && unresolvedMistakes > 0 ? 'text-red-500 animate-pulse' : idx === 1 ? 'text-amber-500' : 'text-emerald-500'
+                }`}>
                 {item.change}
               </span>
             </div>
@@ -190,7 +175,7 @@ export default function FIROverview() {
       {/* Banner / Interactive Dropzone */}
       <FIRCard dark={dark} noPadding className="p-6 flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-[80px] pointer-events-none" />
-        
+
         <div className="flex items-center gap-4 relative z-10">
           <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,7 +188,7 @@ export default function FIROverview() {
           </div>
         </div>
 
-        <FIRButton 
+        <FIRButton
           onClick={() => navigate('/dashboard/audits')}
           variant="secondary"
           dark={dark}
@@ -259,7 +244,7 @@ export default function FIROverview() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <FIRButton 
+                    <FIRButton
                       onClick={() => alert(`Opening details for ${item.petitionNo}...`)}
                       variant="secondary"
                       dark={dark}
@@ -273,17 +258,16 @@ export default function FIROverview() {
             </tbody>
           </table>
         </div>
-        
+
         {/* Pagination */}
         <div className={`px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t ${T.border(dark)}`}>
           <div className="flex items-center gap-3">
             <span className={`text-[11px] ${T.muted(dark)}`}>Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, petitions.length)} of {petitions.length} entries</span>
-            <select 
-              value={itemsPerPage} 
+            <select
+              value={itemsPerPage}
               onChange={handleItemsPerPageChange}
-              className={`text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all ${
-                dark ? 'bg-brand-navy-950 border-white/10 text-white' : 'bg-white border-black/10 text-brand-charcoal'
-              }`}
+              className={`text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all ${dark ? 'bg-brand-navy-950 border-white/10 text-white' : 'bg-white border-black/10 text-brand-charcoal'
+                }`}
             >
               <option value={2}>2 per page</option>
               <option value={3}>3 per page</option>
@@ -293,21 +277,20 @@ export default function FIROverview() {
           </div>
           <div className="flex items-center gap-1.5">
             <FIRButton onClick={() => handlePageChange(currentPage - 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === 1 ? 'opacity-50 pointer-events-none' : ''}`}>Prev</FIRButton>
-            
+
             {Array.from({ length: totalPages }).map((_, i) => (
-              <button 
-                key={i} 
+              <button
+                key={i}
                 onClick={() => handlePageChange(i + 1)}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${
-                  currentPage === i + 1 
-                    ? 'bg-blue-500 text-white' 
+                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${currentPage === i + 1
+                    ? 'bg-blue-500 text-white'
                     : dark ? 'hover:bg-white/5' : 'hover:bg-black/5'
-                }`}
+                  }`}
               >
                 {i + 1}
               </button>
             ))}
-            
+
             <FIRButton onClick={() => handlePageChange(currentPage + 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === totalPages ? 'opacity-50 pointer-events-none' : ''}`}>Next</FIRButton>
           </div>
         </div>

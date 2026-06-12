@@ -19,3 +19,13 @@ export const logoutUser = async () => {
   const response = await API.post('/api/auth/logout');
   return response.data;
 };
+
+export const updateProfile = async (profileData) => {
+  const response = await API.put('/api/auth/profile', profileData);
+  return response.data;
+};
+
+export const updateGlobals = async (globalsData) => {
+  const response = await API.put('/api/auth/globals', globalsData);
+  return response.data;
+};

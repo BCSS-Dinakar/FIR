@@ -25,7 +25,7 @@ export default function LoginPage() {
           navigate('/dashboard');
         }
       } catch (err) {
-        localStorage.removeItem('logged_in_officer');
+        // session invalid
       }
     };
     verifySession();

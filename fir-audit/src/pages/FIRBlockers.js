@@ -17,7 +17,7 @@ export default function FIRBlockers() {
   useEffect(() => {
     const loadPetitions = async () => {
       try {
-        const data = await getPetitions();
+        const data = await getPetitions({ hasBlockers: 'true' });
         setPetitions(data);
       } catch (err) {
         console.error('Failed to load petitions:', err);
@@ -43,7 +43,7 @@ export default function FIRBlockers() {
       });
     }
   });
-  
+
   const totalPages = Math.max(1, Math.ceil(activeBlockers.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentBlockers = activeBlockers.slice(startIndex, startIndex + itemsPerPage);
@@ -51,7 +51,7 @@ export default function FIRBlockers() {
   const confirmResolve = async (e) => {
     e.preventDefault();
     if (!resolvingBlocker) return;
-    
+
     // Find the target petition
     const targetPetition = petitions.find(p => p.id === resolvingBlocker.petitionId);
     if (!targetPetition) return;
@@ -75,8 +75,6 @@ export default function FIRBlockers() {
         return p;
       });
       setPetitions(updatedList);
-      localStorage.setItem('scanned_petitions', JSON.stringify(updatedList));
-      window.dispatchEvent(new Event('storage'));
 
       // Adjust page index if necessary
       const nextActiveBlockersCount = activeBlockers.length - 1;
@@ -84,7 +82,7 @@ export default function FIRBlockers() {
       if (currentPage > maxPage) {
         setCurrentPage(maxPage);
       }
-      
+
       setResolvingBlocker(null);
     } catch (err) {
       console.error('Failed to update petition blocker in database:', err);
@@ -102,7 +100,7 @@ export default function FIRBlockers() {
   };
 
   const T = {
-    card:  (d) => d ? 'bg-brand-navy-900 border-white/[0.06]' : 'bg-white border-black/[0.08] shadow-sm',
+    card: (d) => d ? 'bg-brand-navy-900 border-white/[0.06]' : 'bg-white border-black/[0.08] shadow-sm',
     muted: (d) => d ? 'text-white/50' : 'text-black/50',
     border: (d) => d ? 'border-white/[0.06]' : 'border-black/[0.08]',
     rowHover: (d) => d ? 'hover:bg-white/[0.015]' : 'hover:bg-black/[0.015]',
@@ -171,17 +169,16 @@ export default function FIRBlockers() {
             </div>
           ))}
         </div>
-        
+
         {/* Pagination */}
         <div className={`px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t ${T.border(dark)}`}>
           <div className="flex items-center gap-3">
             <span className={`text-[11px] ${T.muted(dark)}`}>Showing {activeBlockers.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + itemsPerPage, activeBlockers.length)} of {activeBlockers.length} mistakes</span>
-            <select 
-              value={itemsPerPage} 
+            <select
+              value={itemsPerPage}
               onChange={handleItemsPerPageChange}
-              className={`text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all ${
-                dark ? 'bg-brand-navy-950 border-white/10 text-white' : 'bg-white border-black/10 text-brand-charcoal'
-              }`}
+              className={`text-[10px] font-bold px-2 py-1 rounded-md border focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-all ${dark ? 'bg-brand-navy-950 border-white/10 text-white' : 'bg-white border-black/10 text-brand-charcoal'
+                }`}
             >
               <option value={1}>1 per page</option>
               <option value={2}>2 per page</option>
@@ -191,21 +188,20 @@ export default function FIRBlockers() {
           </div>
           <div className="flex items-center gap-1.5">
             <FIRButton onClick={() => handlePageChange(currentPage - 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === 1 ? 'opacity-50 pointer-events-none' : ''}`}>Prev</FIRButton>
-            
+
             {Array.from({ length: totalPages }).map((_, i) => (
-              <button 
-                key={i} 
+              <button
+                key={i}
                 onClick={() => handlePageChange(i + 1)}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${
-                  currentPage === i + 1 
-                    ? 'bg-blue-500 text-white' 
+                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${currentPage === i + 1
+                    ? 'bg-blue-500 text-white'
                     : dark ? 'hover:bg-white/5' : 'hover:bg-black/5'
-                }`}
+                  }`}
               >
                 {i + 1}
               </button>
             ))}
-            
+
             <FIRButton onClick={() => handlePageChange(currentPage + 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === totalPages ? 'opacity-50 pointer-events-none' : ''}`}>Next</FIRButton>
           </div>
         </div>
@@ -215,7 +211,7 @@ export default function FIRBlockers() {
       {resolvingBlocker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className={`w-full max-w-md rounded-2xl shadow-2xl border overflow-hidden ${dark ? 'bg-brand-navy-900 border-white/10' : 'bg-white border-black/10'}`}>
-            
+
             <div className={`px-5 py-4 border-b flex items-center justify-between ${T.border(dark)}`}>
               <h3 className="font-black text-sm">Fix Procedural Mistake</h3>
               <button onClick={() => setResolvingBlocker(null)} className={`text-xs font-bold transition-colors ${dark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>
@@ -237,16 +233,15 @@ export default function FIRBlockers() {
                   <label className={`block text-[11px] font-bold uppercase tracking-wider mb-2 ${T.muted(dark)}`}>
                     Provide Missing Data or Clarification
                   </label>
-                  <textarea 
+                  <textarea
                     autoFocus
                     required
                     placeholder="e.g. Entering Forensic Lab ID: FL-9923..."
-                    className={`w-full h-24 p-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none transition-all ${
-                      dark ? 'bg-brand-navy-950 border-white/10 text-white placeholder-white/30' : 'bg-white border-black/10 text-brand-charcoal placeholder-black/30'
-                    }`}
+                    className={`w-full h-24 p-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none transition-all ${dark ? 'bg-brand-navy-950 border-white/10 text-white placeholder-white/30' : 'bg-white border-black/10 text-brand-charcoal placeholder-black/30'
+                      }`}
                   />
                 </div>
-                
+
                 <div className={`pt-2 flex items-center gap-2`}>
                   <FIRButton type="button" onClick={() => setResolvingBlocker(null)} variant="secondary" dark={dark} className="flex-1">
                     Cancel

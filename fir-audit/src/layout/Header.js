@@ -1,40 +1,34 @@
 import FIRButton from '../components/reusable/FIRButton';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getPetitionCounts } from '../api/petition';
 
-export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) {
+export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T, officer }) {
+  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
-
-  const [officer, setOfficer] = useState(() => {
-    const saved = localStorage.getItem('logged_in_officer');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // fallback
-      }
-    }
-    return {
-      name: 'Insp. K. Shiva Kumar',
-      badge: 'TS-9923',
-      rank: 'Inspector',
-      station: 'PS/HYD/04'
-    };
-  });
+  const [counts, setCounts] = useState({ activeMistakesCount: 0, pendingFilingCount: 0 });
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      const saved = localStorage.getItem('logged_in_officer');
-      if (saved) {
-        try {
-          setOfficer(JSON.parse(saved));
-        } catch (e) {
-          // ignore
+    const fetchCounts = async () => {
+      try {
+        const data = await getPetitionCounts();
+        if (data && data.success) {
+          setCounts({
+            activeMistakesCount: data.activeMistakesCount || 0,
+            pendingFilingCount: data.pendingFilingCount || 0
+          });
         }
+      } catch (err) {
+        console.error('Failed to fetch header counts:', err);
       }
     };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 5000);
+    return () => clearInterval(interval);
   }, []);
+
+  if (!officer) return null;
 
   const getInitials = (name) => {
     if (!name) return 'KS';
@@ -59,8 +53,11 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
     return (rankPrefixes[rank] || '') + name;
   };
 
+  const { activeMistakesCount, pendingFilingCount } = counts;
+
   const initials = getInitials(officer.name);
   const displayName = formatRankName(officer.rank, officer.name);
+
   return (
     <header className={`sticky top-0 z-30 border-b flex items-center justify-between px-5 py-3 transition-colors duration-300 ${T.header(dark)}`}>
 
@@ -70,9 +67,8 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
         {/* Mobile hamburger */}
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className={`p-2 rounded-lg border lg:hidden transition-all ${T.border(dark)} ${
-            dark ? 'bg-white/[0.03] hover:bg-white/[0.07]' : 'bg-white shadow-sm hover:bg-black/[0.02]'
-          }`}
+          className={`p-2 rounded-lg border lg:hidden transition-all ${T.border(dark)} ${dark ? 'bg-white/[0.03] hover:bg-white/[0.07]' : 'bg-white shadow-sm hover:bg-black/[0.02]'
+            }`}
         >
           <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -80,11 +76,10 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
         </button>
 
         {/* FIR Number / Section Search */}
-        <div className={`hidden md:flex items-center gap-2.5 px-3.5 py-2 rounded-xl border text-xs w-48 lg:w-80 transition-all duration-200 focus-within:ring-1 focus-within:ring-blue-500/40 ${
-          dark
-            ? 'bg-white/[0.03] border-white/[0.07] focus-within:border-blue-500/50'
-            : 'bg-black/[0.015] border-black/[0.07] focus-within:border-blue-600/50 shadow-sm'
-        }`}>
+        <div className={`hidden md:flex items-center gap-2.5 px-3.5 py-2 rounded-xl border text-xs w-48 lg:w-80 transition-all duration-200 focus-within:ring-1 focus-within:ring-blue-500/40 ${dark
+          ? 'bg-white/[0.03] border-white/[0.07] focus-within:border-blue-500/50'
+          : 'bg-black/[0.015] border-black/[0.07] focus-within:border-blue-600/50 shadow-sm'
+          }`}>
           <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -93,9 +88,8 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
             placeholder="Search FIR No., BNS section, complainant..."
             className="bg-transparent border-none outline-none text-[11px] font-medium w-full placeholder-gray-400"
           />
-          <kbd className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded border font-mono ${
-            dark ? 'border-white/10 text-white/30 bg-white/[0.03]' : 'border-black/10 text-black/30 bg-black/[0.03]'
-          }`}>⌘K</kbd>
+          <kbd className={`shrink-0 text-[9px] px-1.5 py-0.5 rounded border font-mono ${dark ? 'border-white/10 text-white/30 bg-white/[0.03]' : 'border-black/10 text-black/30 bg-black/[0.03]'
+            }`}>⌘K</kbd>
         </div>
       </div>
 
@@ -105,6 +99,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
         {/* Active Blocker Alerts — most critical indicator */}
         <div className="hidden xl:block">
           <FIRButton
+            onClick={() => navigate('/dashboard/blockers')}
             variant="danger"
             dark={dark}
             title="View Mistakes / Errors"
@@ -116,13 +111,14 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
               </svg>
             }
           >
-            3 Mistakes
+            {activeMistakesCount} {activeMistakesCount === 1 ? 'Mistake' : 'Mistakes'}
           </FIRButton>
         </div>
 
         {/* Pending Audit Queue count */}
         <div className="hidden lg:block">
           <FIRButton
+            onClick={() => navigate('/dashboard/file-fir')}
             variant="warning"
             dark={dark}
             title="Open Pending Cases"
@@ -134,7 +130,7 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
               </svg>
             }
           >
-            5 Pending Cases
+            {pendingFilingCount} {pendingFilingCount === 1 ? 'Pending Case' : 'Pending Cases'}
           </FIRButton>
         </div>
 
@@ -145,11 +141,10 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
         <button
           onClick={() => setDark(!dark)}
           title="Toggle theme"
-          className={`w-8.5 h-8.5 rounded-lg border flex items-center justify-center transition-all ${
-            dark
-              ? 'bg-white/[0.03] border-white/10 text-yellow-300 hover:bg-white/[0.08]'
-              : 'bg-white border-black/10 text-indigo-600 hover:bg-black/[0.02] shadow-sm'
-          }`}
+          className={`w-8.5 h-8.5 rounded-lg border flex items-center justify-center transition-all ${dark
+            ? 'bg-white/[0.03] border-white/10 text-yellow-300 hover:bg-white/[0.08]'
+            : 'bg-white border-black/10 text-indigo-600 hover:bg-black/[0.02] shadow-sm'
+            }`}
         >
           {dark ? (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,11 +164,10 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             title="System notifications"
-            className={`relative w-8.5 h-8.5 rounded-lg border flex items-center justify-center transition-all ${
-              dark
-                ? 'bg-white/[0.03] border-white/10 text-white/70 hover:bg-white/[0.08]'
-                : 'bg-white border-black/10 text-black/60 hover:bg-black/[0.02] shadow-sm'
-            }`}
+            className={`relative w-8.5 h-8.5 rounded-lg border flex items-center justify-center transition-all ${dark
+              ? 'bg-white/[0.03] border-white/10 text-white/70 hover:bg-white/[0.08]'
+              : 'bg-white border-black/10 text-black/60 hover:bg-black/[0.02] shadow-sm'
+              }`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -186,9 +180,8 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
           </button>
 
           {showNotifications && (
-            <div className={`absolute right-0 mt-2 w-72 rounded-xl border shadow-2xl overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200 ${
-              dark ? 'bg-brand-navy-900 border-white/10' : 'bg-white border-black/10'
-            }`}>
+            <div className={`absolute right-0 mt-2 w-72 rounded-xl border shadow-2xl overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200 ${dark ? 'bg-brand-navy-900 border-white/10' : 'bg-white border-black/10'
+              }`}>
               <div className={`px-4 py-3 border-b flex justify-between items-center ${dark ? 'border-white/10' : 'border-black/10'}`}>
                 <span className="text-xs font-bold">Notifications</span>
                 <span className="text-[10px] text-blue-500 font-bold cursor-pointer hover:underline">Mark all read</span>
@@ -263,9 +256,8 @@ export default function Header({ dark, setDark, mobileOpen, setMobileOpen, T }) 
               {displayName}
             </div>
             <div className="flex items-center gap-1 mt-0.5">
-              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm ${
-                dark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
-              }`}>
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm ${dark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
+                }`}>
                 Day Shift
               </span>
               <span className={`text-[9px] ${dark ? 'text-white/30' : 'text-black/30'}`}>· {officer.station}</span>

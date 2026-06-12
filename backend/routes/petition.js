@@ -13,6 +13,164 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+const formatPetition = (p) => {
+  if (!p) return null;
+  return {
+    _id: p._id,
+    id: p.id,
+    petitionNo: p.petitionNo,
+    date: p.date,
+    complainant: p.complainant,
+    accused: p.accused,
+    sections: p.sections || [],
+    score: p.score,
+    status: p.status,
+    blockers: p.blockers || [],
+    sourceFile: p.sourceFile,
+    firNo: p.firNo || "",
+    filedAt: p.filedAt || "",
+    district: p.district || "",
+    policeStation: p.policeStation || "",
+    gdNumber: p.gdNumber || "",
+    incidentDate: p.incidentDate || "",
+    incidentTime: p.incidentTime || "",
+    occurrencePlace: p.occurrencePlace || "",
+    complainantRelative: p.complainantRelative || "",
+    complainantPhone: p.complainantPhone || "",
+    complainantAddress: p.complainantAddress || "",
+    incidentFacts: p.incidentFacts || "",
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+    __v: p.__v
+  };
+};
+
+/**
+ * @route   GET /api/petitions/analytics
+ * @desc    Get optimized compliance scores and blocker distributions for analytics charting
+ * @access  Public
+ */
+router.get('/analytics', async (req, res) => {
+  try {
+    const petitionsForScores = await Petition.find({}, 'score').sort({ createdAt: 1 });
+    const scores = petitionsForScores.map(p => p.score);
+
+    const petitionsForBlockers = await Petition.find({}, 'blockers');
+    const blockerCounts = {};
+    petitionsForBlockers.forEach(p => {
+      if (p.blockers && Array.isArray(p.blockers)) {
+        p.blockers.forEach(b => {
+          blockerCounts[b] = (blockerCounts[b] || 0) + 1;
+        });
+      }
+    });
+
+    const User = require('../models/User');
+    const users = await User.find({}, 'name rank station badge');
+    
+    const officers = users.map((user) => {
+      const trend = null;
+
+      const parts = user.name.replace(/^(Insp\.|Sub-Insp\.|Asst\.|Insp|SI|ASI|DSP|Constable)\.?\s+/i, '').split(' ');
+      const initials = parts.length >= 2 
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() 
+        : user.name.substring(0, 2).toUpperCase();
+
+      const colors = [
+        'from-blue-600 to-cyan-500',
+        'from-emerald-600 to-teal-500',
+        'from-purple-600 to-pink-500',
+        'from-amber-600 to-orange-500'
+      ];
+      const colorIdx = (user.badge.charCodeAt(user.badge.length - 1)) % colors.length;
+
+      return {
+        name: user.name,
+        rank: user.rank,
+        score: null,
+        trend,
+        initials,
+        color: colors[colorIdx],
+        badge: user.badge
+      };
+    });
+
+    officers.sort((a, b) => b.score - a.score);
+
+    const rankedOfficers = officers.map((off, idx) => ({
+      ...off,
+      rank: (idx + 1).toString()
+    }));
+
+    return res.status(200).json({
+      success: true,
+      scores,
+      blockerCounts,
+      officers: rankedOfficers
+    });
+  } catch (error) {
+    console.error('Fetch analytics error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/petitions/counts
+ * @desc    Get optimized counts for mistakes and pending filings
+ * @access  Public
+ */
+router.get('/counts', async (req, res) => {
+  try {
+    const result = await Petition.aggregate([
+      { $match: { status: { $ne: 'FIR Filed' } } },
+      { $project: { numBlockers: { $cond: { if: { $isArray: '$blockers' }, then: { $size: '$blockers' }, else: 0 } } } },
+      { $group: { _id: null, totalMistakes: { $sum: '$numBlockers' } } }
+    ]);
+    const activeMistakesCount = result[0]?.totalMistakes || 0;
+
+    const pendingFilingCount = await Petition.countDocuments({
+      status: 'Pending Filing',
+      $or: [
+        { blockers: { $exists: false } },
+        { blockers: { $size: 0 } }
+      ]
+    });
+
+    return res.status(200).json({
+      success: true,
+      activeMistakesCount,
+      pendingFilingCount
+    });
+  } catch (error) {
+    console.error('Fetch counts error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/petitions/firstatusboard
+ * @desc    Get all petitions and FIRs for the FIR Status Board
+ * @access  Public
+ */
+router.get('/firstatusboard', async (req, res) => {
+  try {
+    const petitions = await Petition.find().select('id petitionNo date complainant accused sections score status blockers sourceFile firNo filedAt district policeStation gdNumber incidentDate incidentTime occurrencePlace complainantRelative complainantPhone complainantAddress incidentFacts createdAt updatedAt').sort({ createdAt: -1 });
+    const FIR = require('../models/FIR');
+    const firs = await FIR.find().sort({ createdAt: -1 });
+
+    const formattedPetitions = petitions.map(p => formatPetition(p));
+
+    return res.status(200).json({
+      success: true,
+      petitions: formattedPetitions,
+      firs
+    });
+  } catch (error) {
+    console.error('Fetch statusboard error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 /**
  * @route   GET /api/petitions
  * @desc    Get all petitions (supports filtering by status, hasBlockers, and search term)
@@ -64,10 +222,31 @@ router.get('/', async (req, res) => {
       }
     }
 
-    const petitions = await Petition.find(filter).sort({ createdAt: -1 });
-    return res.status(200).json(petitions);
+    const petitions = await Petition.find(filter).select('id petitionNo date complainant accused sections score status blockers sourceFile firNo filedAt district policeStation gdNumber incidentDate incidentTime occurrencePlace complainantRelative complainantPhone complainantAddress incidentFacts createdAt updatedAt').sort({ createdAt: -1 });
+    
+    const formattedPetitions = petitions.map(p => formatPetition(p));
+
+    return res.status(200).json(formattedPetitions);
   } catch (error) {
     console.error('Fetch petitions error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/petitions/:id
+ * @desc    Get a single petition by its custom id (returns full details)
+ * @access  Public
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const petition = await Petition.findOne({ id: req.params.id });
+    if (!petition) {
+      return res.status(404).json({ success: false, message: 'Petition not found' });
+    }
+    return res.status(200).json(petition);
+  } catch (error) {
+    console.error('Fetch single petition error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -81,7 +260,7 @@ router.post('/', async (req, res) => {
   try {
     const petition = new Petition(req.body);
     await petition.save();
-    return res.status(201).json(petition);
+    return res.status(201).json(formatPetition(petition));
   } catch (error) {
     console.error('Save petition error:', error);
     return res.status(500).json({ success: false, message: error.message });
@@ -103,7 +282,7 @@ router.put('/:id', async (req, res) => {
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Petition not found' });
     }
-    return res.status(200).json(updated);
+    return res.status(200).json(formatPetition(updated));
   } catch (error) {
     console.error('Update petition error:', error);
     return res.status(500).json({ success: false, message: error.message });
@@ -130,7 +309,7 @@ router.delete('/:id', async (req, res) => {
 
 /**
  * @route   POST /api/petitions/pipeline
- * @desc    Check a petition document up to Step 3 (Extract, Translate, Validate)
+ * @desc    Check a petition document up to Step 3 (Extract, Translate, Validate) and stream progress
  * @access  Public
  */
 router.post('/pipeline', upload.single('file'), async (req, res) => {
@@ -138,12 +317,61 @@ router.post('/pipeline', upload.single('file'), async (req, res) => {
     return res.status(400).json({ success: false, message: 'No file was uploaded.' });
   }
 
+  // Set headers for NDJSON streaming
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.writeHead(200);
+
   try {
-    const result = await runPetitionPipeline(req.file);
-    return res.status(200).json(result);
+    const onStep = (data) => {
+      res.write(JSON.stringify(data) + '\n');
+    };
+
+    const result = await runPetitionPipeline(req.file, onStep);
+
+    // Build the database record using the pipeline output
+    const complainant = result.metadata?.complainant;
+    const accused = result.metadata?.accused;
+    const sections = result.metadata?.sections;
+    const blockers = result.step3Output?.missing_fields;
+    const valid = result.step3Output?.valid;
+
+    // Calculate score based on missing fields
+    const score = valid ? 95 : Math.max(40, 90 - ((blockers ? blockers.length : 0) * 15));
+
+    const newId = `PET-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const petNo = `PET/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
+    const dateFormatted = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    const newPetition = new Petition({
+      id: newId,
+      petitionNo: petNo,
+      date: dateFormatted,
+      complainant: complainant,
+      accused: accused,
+      sections: sections,
+      score: score,
+      status: 'Pending Filing',
+      blockers: blockers,
+      sourceFile: req.file.originalname,
+      step1Output: result.step1Output,
+      step2Output: result.step2Output,
+      step3Output: result.step3Output,
+      metadata: result.metadata
+    });
+
+    // Save directly to MongoDB
+    await newPetition.save();
+    
+    // Send final result step
+    res.write(JSON.stringify({ step: 4, status: 'completed', result: formatPetition(newPetition) }) + '\n');
+    res.end();
   } catch (error) {
     console.error('Petition Pipeline error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    res.write(JSON.stringify({ status: 'error', message: error.message }) + '\n');
+    res.end();
   } finally {
     // Ensure uploaded file is deleted to clean up temp storage
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {

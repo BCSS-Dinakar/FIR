@@ -1,14 +1,12 @@
 import FIRCard from '../reusable/FIRCard';
 
-export default function ScoreTrendChart({ dark, petitions = [] }) {
+export default function ScoreTrendChart({ dark, scores = [] }) {
   const T = {
     muted: (d) => d ? 'text-white/50' : 'text-black/50',
     border: (d) => d ? 'border-white/[0.06]' : 'border-black/[0.08]',
   };
 
-  // Get real score list (chronological order, oldest to newest)
-  const realScores = petitions.map(p => p.score).reverse();
-  const points = realScores.length > 0 ? realScores : [65, 68, 72, 70, 75, 78, 80, 76, 82, 85, 84, 88, 90, 91];
+  const points = scores.length > 0 ? scores : [65, 68, 72, 70, 75, 78, 80, 76, 82, 85, 84, 88, 90, 91];
   
   const currentAvg = points.length > 0 ? (points.reduce((a, b) => a + b, 0) / points.length).toFixed(1) : '0';
   
@@ -33,13 +31,13 @@ export default function ScoreTrendChart({ dark, petitions = [] }) {
         <div>
           <h3 className="font-bold text-sm">Compliance Score Trend</h3>
           <p className={`text-[11px] mt-0.5 ${T.muted(dark)}`}>
-            {realScores.length > 0 ? 'Based on live database cases' : '14-day moving average'}
+            {scores.length > 0 ? 'Based on live database cases' : '14-day moving average'}
           </p>
         </div>
         <div className="text-right">
           <div className="text-2xl font-black text-emerald-500">{currentAvg}%</div>
           <div className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full mt-1">
-            {realScores.length > 0 ? 'Live station average' : '+12.4% vs last week'}
+            {scores.length > 0 ? 'Live station average' : '+12.4% vs last week'}
           </div>
         </div>
       </div>

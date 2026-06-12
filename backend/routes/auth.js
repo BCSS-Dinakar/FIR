@@ -76,7 +76,9 @@ router.post('/register', async (req, res) => {
         rank: user.rank,
         state: user.state,
         district: user.district,
-        lastLogin: user.lastLogin
+        lastLogin: user.lastLogin,
+        themeModeUi: user.themeModeUi,
+        sidebarCollapse: user.sidebarCollapse
       }
     });
 
@@ -154,7 +156,9 @@ router.post('/login', async (req, res) => {
         rank: user.rank,
         state: user.state,
         district: user.district,
-        lastLogin: user.lastLogin
+        lastLogin: user.lastLogin,
+        themeModeUi: user.themeModeUi,
+        sidebarCollapse: user.sidebarCollapse
       }
     });
 
@@ -184,7 +188,9 @@ router.get('/me', protect, async (req, res) => {
         rank: req.user.rank,
         state: req.user.state,
         district: req.user.district,
-        lastLogin: req.user.lastLogin
+        lastLogin: req.user.lastLogin,
+        themeModeUi: req.user.themeModeUi,
+        sidebarCollapse: req.user.sidebarCollapse
       }
     });
   } catch (error) {
@@ -207,6 +213,98 @@ router.post('/logout', (req, res) => {
     sameSite: 'lax',
   });
   return res.json({ success: true, message: 'Logged out successfully.' });
+});
+
+// @route   PUT api/auth/profile
+// @desc    Update current officer profile details
+// @access  Private
+router.put('/profile', protect, async (req, res) => {
+  const { name, station, district, rank } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (name) user.name = name;
+    if (station) user.station = station;
+    if (district) user.district = district;
+    if (rank) user.rank = rank;
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: {
+        id: user._id,
+        name: user.name,
+        badge: user.badge,
+        email: user.email,
+        mobile: user.mobile,
+        station: user.station,
+        rank: user.rank,
+        state: user.state,
+        district: user.district,
+        lastLogin: user.lastLogin,
+        themeModeUi: user.themeModeUi,
+        sidebarCollapse: user.sidebarCollapse
+      }
+    });
+  } catch (error) {
+    console.error('Error in profile update:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error updating user profile.'
+    });
+  }
+});
+
+// @route   PUT api/auth/globals
+// @desc    Update current officer UI settings (theme and sidebar)
+// @access  Private
+router.put('/globals', protect, async (req, res) => {
+  const { themeModeUi, sidebarCollapse } = req.body;
+
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (themeModeUi !== undefined) user.themeModeUi = themeModeUi;
+    if (sidebarCollapse !== undefined) user.sidebarCollapse = sidebarCollapse;
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: 'Global UI settings updated successfully.',
+      user: {
+        id: user._id,
+        name: user.name,
+        badge: user.badge,
+        email: user.email,
+        mobile: user.mobile,
+        station: user.station,
+        rank: user.rank,
+        state: user.state,
+        district: user.district,
+        lastLogin: user.lastLogin,
+        themeModeUi: user.themeModeUi,
+        sidebarCollapse: user.sidebarCollapse
+      }
+    });
+  } catch (error) {
+    console.error('Error in globals update:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error updating global UI settings.'
+    });
+  }
 });
 
 module.exports = router;
