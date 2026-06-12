@@ -2,7 +2,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
-import { runPetitionPipeline, createPetition } from '../api/petition';
+import { runPetitionPipeline } from '../api/petition';
 
 const SAMPLE_FILES = [
   {

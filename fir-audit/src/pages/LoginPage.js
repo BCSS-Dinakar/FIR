@@ -6,7 +6,7 @@ import { registerUser, loginUser, checkMe } from '../api/auth';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved !== null ? JSON.parse(saved) : true;
@@ -31,13 +31,13 @@ export default function LoginPage() {
     verifySession();
   }, [navigate]);
 
-  const [email, setEmail] = useState('officer.shiva@telanganapolice.gov.in');
-  const [password, setPassword] = useState('AuditPass2026!');
+  const [email, setEmail] = useState('shiva@firaudit.gov.in');
+  const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [activeForm, setActiveForm] = useState(() => {
     return location.state?.tab === 'register' ? 'register' : 'login';
-  }); 
+  });
 
   // Registration States
   const [regName, setRegName] = useState('');
@@ -56,10 +56,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const T = {
-    bg:     (d) => d ? 'bg-brand-navy-950 text-white' : 'bg-brand-slate-50 text-brand-charcoal',
-    text:   (d) => d ? 'text-white' : 'text-brand-charcoal',
-    muted:  (d) => d ? 'text-white/50' : 'text-black/50',
-    input:  (d) => d ? 'bg-white/[0.04] border-white/10 text-white focus:border-blue-500 focus:bg-white/[0.08] focus:ring-4 focus:ring-blue-500/20 shadow-inner' : 'bg-black/[0.03] border-black/10 text-brand-charcoal focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/20 shadow-inner',
+    bg: (d) => d ? 'bg-brand-navy-950 text-white' : 'bg-brand-slate-50 text-brand-charcoal',
+    text: (d) => d ? 'text-white' : 'text-brand-charcoal',
+    muted: (d) => d ? 'text-white/50' : 'text-black/50',
+    input: (d) => d ? 'bg-white/[0.04] border-white/10 text-white focus:border-blue-500 focus:bg-white/[0.08] focus:ring-4 focus:ring-blue-500/20 shadow-inner' : 'bg-black/[0.03] border-black/10 text-brand-charcoal focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/20 shadow-inner',
     accent: 'text-blue-400 hover:text-blue-300 transition-colors',
     accentLight: 'text-blue-600 hover:text-blue-700 transition-colors',
   };
@@ -152,14 +152,12 @@ export default function LoginPage() {
   const renderError = () => {
     if (!errorMsg) return null;
     return (
-      <div className={`p-4 mb-6 rounded-2xl border flex items-start gap-3 animate-shake backdrop-blur-md shadow-lg transition-all ${
-        dark 
-          ? 'bg-rose-500/10 border-rose-500/30 text-rose-200 shadow-rose-500/5' 
-          : 'bg-rose-50/80 border-rose-200/80 text-rose-900 shadow-rose-900/5'
-      }`}>
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-          dark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-600'
+      <div className={`p-4 mb-6 rounded-2xl border flex items-start gap-3 animate-shake backdrop-blur-md shadow-lg transition-all ${dark
+        ? 'bg-rose-500/10 border-rose-500/30 text-rose-200 shadow-rose-500/5'
+        : 'bg-rose-50/80 border-rose-200/80 text-rose-900 shadow-rose-900/5'
         }`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${dark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-600'
+          }`}>
           <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
@@ -172,7 +170,7 @@ export default function LoginPage() {
             {errorMsg}
           </p>
         </div>
-        <button 
+        <button
           type="button"
           onClick={() => setErrorMsg('')}
           className="text-gray-400 hover:text-gray-500 transition-colors p-1 shrink-0"
@@ -188,14 +186,12 @@ export default function LoginPage() {
   const renderSuccess = () => {
     if (!successMsg) return null;
     return (
-      <div className={`p-4 mb-6 rounded-2xl border flex items-start gap-3 animate-in fade-in duration-300 backdrop-blur-md shadow-lg transition-all ${
-        dark 
-          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 shadow-emerald-500/5' 
-          : 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900 shadow-emerald-900/5'
-      }`}>
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-          dark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-600'
+      <div className={`p-4 mb-6 rounded-2xl border flex items-start gap-3 animate-in fade-in duration-300 backdrop-blur-md shadow-lg transition-all ${dark
+        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 shadow-emerald-500/5'
+        : 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900 shadow-emerald-900/5'
         }`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${dark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-600'
+          }`}>
           <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0" />
           </svg>
@@ -208,7 +204,7 @@ export default function LoginPage() {
             {successMsg}
           </p>
         </div>
-        <button 
+        <button
           type="button"
           onClick={() => setSuccessMsg('')}
           className="text-gray-400 hover:text-gray-500 transition-colors p-1 shrink-0"
@@ -233,7 +229,7 @@ export default function LoginPage() {
           animation: shake 0.4s ease-in-out;
         }
       `}</style>
-      
+
       {/* Dynamic Background Glows */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className={`absolute top-0 left-1/3 w-[600px] h-[600px] rounded-full blur-[130px] ${dark ? 'bg-blue-700/5' : 'bg-blue-400/10'}`} />
@@ -242,10 +238,10 @@ export default function LoginPage() {
 
       {/* Theme toggle & Back button in floating bar */}
       <div className="absolute top-6 right-6 z-30 flex items-center gap-3">
-        <FIRButton 
-          variant="secondary" 
-          dark={dark} 
-          onClick={() => navigate('/')} 
+        <FIRButton
+          variant="secondary"
+          dark={dark}
+          onClick={() => navigate('/')}
           icon={
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -254,8 +250,8 @@ export default function LoginPage() {
         >
           Back to Home
         </FIRButton>
-        <button 
-          onClick={() => setDark(!dark)} 
+        <button
+          onClick={() => setDark(!dark)}
           className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all ${dark ? 'bg-white/[0.04] border-white/10 text-yellow-300 hover:bg-white/[0.08]' : 'bg-white border-black/10 text-indigo-600 hover:bg-black/[0.02] shadow-sm'}`}
         >
           {dark ? (
@@ -272,7 +268,7 @@ export default function LoginPage() {
 
       {/* LEFT COLUMN: Beautiful Image & Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col justify-between p-16 border-r border-white/5 bg-brand-navy-950">
-        <div 
+        <div
           className="absolute inset-0 z-0 bg-cover bg-center opacity-85 transition-transform duration-10000 hover:scale-105"
           style={{ backgroundImage: `url('/login_banner.png')` }}
         />
@@ -310,14 +306,14 @@ export default function LoginPage() {
 
       {/* RIGHT COLUMN: Premium Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 md:p-16 relative z-10 overflow-hidden">
-        
+
         {/* Glow behind form */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none" />
 
         <div className="w-full max-w-md relative z-10">
-          
+
           <div key={activeForm} className="animate-in slide-in-from-right-8 fade-in duration-500 fill-mode-both">
-            
+
             {/* ── SIGN IN FORM ── */}
             {activeForm === 'login' && (
               <>
@@ -406,7 +402,7 @@ export default function LoginPage() {
                       />
                       <span className={`font-medium ${T.muted(dark)}`}>Remember me</span>
                     </label>
-                    
+
                     <div className="flex flex-col text-right gap-1.5 font-bold">
                       <button type="button" onClick={() => setActiveForm('forgot')} className={dark ? T.accent : T.accentLight}>
                         Forgot password?
@@ -446,8 +442,8 @@ export default function LoginPage() {
 
                 <div className="mt-8 text-center text-sm font-medium pt-2">
                   <span className={T.muted(dark)}>New to FIRAudit.ai? </span>
-                  <button 
-                    onClick={() => setActiveForm('register')} 
+                  <button
+                    onClick={() => setActiveForm('register')}
                     className={`font-bold transition-all hover:underline ${dark ? 'text-blue-400' : 'text-blue-600'}`}
                   >
                     Create Account
@@ -584,10 +580,10 @@ export default function LoginPage() {
                       </button>
                     </div>
                   </div>
-                  
-                  <button 
-                    type="submit" 
-                    disabled={loading} 
+
+                  <button
+                    type="submit"
+                    disabled={loading}
                     className={`w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-3 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-4 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
@@ -635,7 +631,7 @@ export default function LoginPage() {
                     <label className="block text-xs font-bold uppercase tracking-wider mb-2 ml-1">Government Email</label>
                     <input type="email" required placeholder="name@policestate.gov.in" className={`w-full px-5 py-4 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`} />
                   </div>
-                  
+
                   <button type="submit" className="w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-4 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-6">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
                     <span className="relative">Send Reset Link</span>
@@ -669,7 +665,7 @@ export default function LoginPage() {
                     <label className="block text-xs font-bold uppercase tracking-wider mb-2 ml-1">Badge Number</label>
                     <input type="text" required placeholder="e.g. TS-9923" className={`w-full px-5 py-4 rounded-2xl border text-sm focus:outline-none ${T.input(dark)}`} />
                   </div>
-                  
+
                   <button type="submit" className="w-full relative group overflow-hidden rounded-2xl bg-blue-600 text-white font-bold tracking-wide py-4 text-sm shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] transition-all duration-300 mt-6">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 group-hover:scale-105 transition-transform duration-500" />
                     <span className="relative">Locate Account</span>

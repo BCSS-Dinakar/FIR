@@ -9,7 +9,6 @@ export default function FIROverview() {
   const { dark } = useGlobals();
   const navigate = useNavigate();
   const [petitions, setPetitions] = useState([]);
-  const [firs, setFirs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -28,7 +27,6 @@ export default function FIROverview() {
         const data = await getFIRStatusBoard();
         if (data && data.success) {
           setPetitions(data.petitions || []);
-          setFirs(data.firs || []);
           if (data.stats) {
             setStats(data.stats);
           }
