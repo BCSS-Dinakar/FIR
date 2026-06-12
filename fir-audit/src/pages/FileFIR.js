@@ -535,7 +535,7 @@ export default function FileFIR() {
                             dark={dark}
                             className="px-3 py-1.5 text-[11px]"
                           >
-                            View Report
+                            View
                           </FIRButton>
                           <FIRButton
                             onClick={() => {

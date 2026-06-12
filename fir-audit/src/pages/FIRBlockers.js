@@ -3,7 +3,23 @@ import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FIRBadge from '../components/reusable/FIRBadge';
-import { updatePetition, getMistakesAndWarnings } from '../api/petition';
+import FileFIRForm from '../components/reusable/FileFIRForm';
+import { updatePetition, getMistakesAndWarnings, getPetitionById } from '../api/petition';
+
+const ALL_BNS_SECTIONS = [
+  { code: 'BNS 318 (Cheating)', desc: 'Cheating and dishonestly inducing delivery of property' },
+  { code: 'BNS 120B (Criminal Conspiracy)', desc: 'Punishment of criminal conspiracy' },
+  { code: 'BNS 336 (Forgery)', desc: 'Forgery of valuable security, will, etc.' },
+  { code: 'BNS 84 (Dowry Harassment)', desc: 'Cruelty by husband or relatives of husband' },
+  { code: 'BNS 303 (Theft)', desc: 'Punishment for theft' },
+  { code: 'BNS 331 (House-trespass)', desc: 'Lurking house-trespass or house-breaking' },
+  { code: 'BNS 115 (Hurt)', desc: 'Voluntarily causing hurt' },
+  { code: 'BNS 103 (Murder)', desc: 'Punishment for murder' },
+  { code: 'BNS 351 (Assault)', desc: 'Assault or criminal force' },
+  { code: 'BNS 304 (Extortion)', desc: 'Punishment for extortion' },
+  { code: 'BNS 117 (Grievous Hurt)', desc: 'Voluntarily causing grievous hurt' },
+  { code: 'BNS 124 (Wrongful Restraint)', desc: 'Punishment for wrongful restraint' }
+];
 
 export default function FIRBlockers() {
   const { dark } = useOutletContext();
@@ -12,6 +28,27 @@ export default function FIRBlockers() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(2);
   const [resolvingBlocker, setResolvingBlocker] = useState(null); // Tracks which blocker is being resolved
+  const [selectedPetition, setSelectedPetition] = useState(null);
+  const [modalSections, setModalSections] = useState([]);
+  const [formData, setFormData] = useState({
+    district: 'Hyderabad',
+    policeStation: 'PS/HYD/04',
+    gdNumber: '',
+    incidentDate: '',
+    incidentTime: '',
+    distanceDirection: '3 km South',
+    beatNumber: 'Beat No. 4',
+    occurrencePlace: 'Banjara Hills Road No 4, Hyderabad',
+    complainant: '',
+    complainantRelative: '',
+    nationality: 'Indian',
+    complainantPhone: '',
+    complainantAddress: '',
+    accused: '',
+    accusedCount: 1,
+    accusedDescription: '',
+    incidentFacts: ''
+  });
 
   const [stats, setStats] = useState({
     activeMistakes: 0,
@@ -59,47 +96,81 @@ export default function FIRBlockers() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentBlockers = activeBlockers.slice(startIndex, startIndex + itemsPerPage);
 
+  const handleOpenResolve = async (blocker) => {
+    try {
+      const fullPetition = await getPetitionById(blocker.petitionId);
+      setSelectedPetition(fullPetition);
+      setModalSections(fullPetition.sections || []);
+      setFormData({
+        district: fullPetition.district || 'Hyderabad',
+        policeStation: fullPetition.policeStation || 'PS/HYD/04',
+        gdNumber: fullPetition.gdNumber || `GD-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        incidentDate: fullPetition.incidentDate || new Date().toISOString().substring(0, 10),
+        incidentTime: fullPetition.incidentTime || '12:00',
+        distanceDirection: fullPetition.distanceDirection || '3 km South',
+        beatNumber: fullPetition.beatNumber || 'Beat No. 4',
+        occurrencePlace: fullPetition.occurrencePlace || 'Banjara Hills Road No 4, Hyderabad',
+        complainant: fullPetition.complainant || '',
+        complainantRelative: fullPetition.complainantRelative || '',
+        nationality: fullPetition.nationality || 'Indian',
+        complainantPhone: fullPetition.complainantPhone || '',
+        complainantAddress: fullPetition.complainantAddress || '',
+        accused: fullPetition.accused || '',
+        accusedCount: fullPetition.accusedCount || 1,
+        accusedDescription: fullPetition.accusedDescription || '',
+        incidentFacts: fullPetition.incidentFacts || `A formal complaint petition was uploaded regarding BNS sections: ${(fullPetition.sections || []).join(', ')} alleging misconduct/offence by ${fullPetition.accused || 'Unknown'} as reported by ${fullPetition.complainant || 'Unknown'}. Compliance checks completed with a score of ${fullPetition.score || 0}/100.`
+      });
+      setResolvingBlocker(blocker);
+    } catch (err) {
+      console.error('Failed to load petition details for resolution:', err);
+      alert('Failed to load petition details. Please try again.');
+    }
+  };
+
   const confirmResolve = async (e) => {
     e.preventDefault();
-    if (!resolvingBlocker) return;
+    if (!resolvingBlocker || !selectedPetition) return;
 
-    // Find the target petition
-    const targetPetition = petitions.find(p => p.id === resolvingBlocker.petitionId);
-    if (!targetPetition) return;
-
-    const remainingBlockers = targetPetition.blockers.filter(b => b !== resolvingBlocker.issue);
     const updatedPetitionData = {
-      ...targetPetition,
-      blockers: remainingBlockers,
-      score: remainingBlockers.length === 0 ? 95 : targetPetition.score // Boost score once fully cleared
+      ...selectedPetition,
+      complainant: formData.complainant,
+      complainantRelative: formData.complainantRelative,
+      complainantPhone: formData.complainantPhone,
+      complainantAddress: formData.complainantAddress,
+      accused: formData.accused,
+      nationality: formData.nationality,
+      district: formData.district,
+      policeStation: formData.policeStation,
+      gdNumber: formData.gdNumber,
+      incidentDate: formData.incidentDate,
+      incidentTime: formData.incidentTime,
+      occurrencePlace: formData.occurrencePlace,
+      distanceDirection: formData.distanceDirection,
+      beatNumber: formData.beatNumber,
+      accusedCount: formData.accusedCount,
+      accusedDescription: formData.accusedDescription,
+      incidentFacts: formData.incidentFacts,
+      sections: modalSections,
+      status: 'Pending Filing',
+      blockers: [], // Clear all blockers since they resolved the errors
+      score: 95 // Boost the score
     };
 
     try {
       // 1. Update backend database
-      await updatePetition(targetPetition.id, updatedPetitionData);
+      await updatePetition(selectedPetition.id, updatedPetitionData);
 
-      // 2. Update local state
-      const updatedList = petitions.map(p => {
-        if (p.id === resolvingBlocker.petitionId) {
-          return updatedPetitionData;
+      // 2. Fetch updated list and stats
+      const data = await getMistakesAndWarnings();
+      if (data && data.success) {
+        setPetitions(data.petitions || []);
+        if (data.stats) {
+          setStats(data.stats);
         }
-        return p;
-      });
-      setPetitions(updatedList);
-      setStats(prev => ({
-        ...prev,
-        activeMistakes: Math.max(0, prev.activeMistakes - 1),
-        resolvedToday: (parseInt(prev.resolvedToday) + 1).toString()
-      }));
-
-      // Adjust page index if necessary
-      const nextActiveBlockersCount = activeBlockers.length - 1;
-      const maxPage = Math.max(1, Math.ceil(nextActiveBlockersCount / itemsPerPage));
-      if (currentPage > maxPage) {
-        setCurrentPage(maxPage);
       }
 
       setResolvingBlocker(null);
+      setSelectedPetition(null);
     } catch (err) {
       console.error('Failed to update petition blocker in database:', err);
       alert('Failed to resolve mistake: ' + err.message);
@@ -179,7 +250,7 @@ export default function FIRBlockers() {
                   <p className={`text-[10px] mt-1 ${T.muted(dark)}`}>Flagged {b.since} · ID: {b.id}</p>
                 </div>
               </div>
-              <FIRButton onClick={() => setResolvingBlocker(b)} variant="action" dark={dark}>
+              <FIRButton onClick={() => handleOpenResolve(b)} variant="action" dark={dark}>
                 Resolve →
               </FIRButton>
             </div>
@@ -224,46 +295,51 @@ export default function FIRBlockers() {
       </FIRCard>
 
       {/* ── Resolution Modal Overlay ── */}
-      {resolvingBlocker && (
+      {resolvingBlocker && selectedPetition && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className={`w-full max-w-md rounded-2xl shadow-2xl border overflow-hidden ${dark ? 'bg-brand-navy-900 border-white/10' : 'bg-white border-black/10'}`}>
+          <div className={`w-full max-w-lg rounded-2xl shadow-2xl border overflow-hidden ${dark ? 'bg-brand-navy-900 border-white/10' : 'bg-white border-black/10'}`}>
 
             <div className={`px-5 py-4 border-b flex items-center justify-between ${T.border(dark)}`}>
-              <h3 className="font-black text-sm">Fix Procedural Mistake</h3>
-              <button onClick={() => setResolvingBlocker(null)} className={`text-xs font-bold transition-colors ${dark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>
+              <h3 className="font-black text-sm">Resolve Mistakes & Edit Fields</h3>
+              <button onClick={() => { setResolvingBlocker(null); setSelectedPetition(null); }} className={`text-xs font-bold transition-colors ${dark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>
                 ✕ Close
               </button>
             </div>
 
-            <div className="p-5">
-              <div className={`p-4 rounded-xl mb-5 text-sm ${dark ? 'bg-white/[0.03] border border-white/5' : 'bg-black/[0.02] border border-black/5'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-mono font-bold text-blue-500">{resolvingBlocker.fir}</span>
-                  <span className={`text-[10px] font-mono ${T.muted(dark)}`}>{resolvingBlocker.id}</span>
+            <div className="p-5 space-y-4">
+              {/* Warnings and Blockers banner */}
+              {selectedPetition.blockers && selectedPetition.blockers.length > 0 && (
+                <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-start gap-2.5 text-xs font-semibold">
+                  <span className="text-sm">⚠️</span>
+                  <div>
+                    <p className="font-bold mb-1">Procedural Mistakes Found</p>
+                    <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
+                      {selectedPetition.blockers.map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
-                <p className="font-bold leading-relaxed">{resolvingBlocker.issue}</p>
-              </div>
+              )}
 
+              {/* Scrollable File FIR Form */}
               <form onSubmit={confirmResolve} className="space-y-4">
-                <div>
-                  <label className={`block text-[11px] font-bold uppercase tracking-wider mb-2 ${T.muted(dark)}`}>
-                    Provide Missing Data or Clarification
-                  </label>
-                  <textarea
-                    autoFocus
-                    required
-                    placeholder="e.g. Entering Forensic Lab ID: FL-9923..."
-                    className={`w-full h-24 p-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none transition-all ${dark ? 'bg-brand-navy-950 border-white/10 text-white placeholder-white/30' : 'bg-white border-black/10 text-brand-charcoal placeholder-black/30'
-                      }`}
-                  />
-                </div>
+                <FileFIRForm
+                  dark={dark}
+                  formData={formData}
+                  setFormData={setFormData}
+                  modalSections={modalSections}
+                  setModalSections={setModalSections}
+                  selectedPetition={selectedPetition}
+                  allBnsSections={ALL_BNS_SECTIONS}
+                />
 
-                <div className={`pt-2 flex items-center gap-2`}>
-                  <FIRButton type="button" onClick={() => setResolvingBlocker(null)} variant="secondary" dark={dark} className="flex-1">
+                <div className={`pt-4 border-t flex items-center gap-2.5 ${T.border(dark)}`}>
+                  <FIRButton type="button" onClick={() => { setResolvingBlocker(null); setSelectedPetition(null); }} variant="secondary" dark={dark} className="flex-1">
                     Cancel
                   </FIRButton>
                   <FIRButton type="submit" variant="primary" className="flex-1">
-                    Submit Correction
+                    Save
                   </FIRButton>
                 </div>
               </form>
