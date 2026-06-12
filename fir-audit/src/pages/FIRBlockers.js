@@ -24,6 +24,7 @@ const ALL_BNS_SECTIONS = [
 export default function FIRBlockers() {
   const { dark } = useOutletContext();
 
+
   const [petitions, setPetitions] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(2);

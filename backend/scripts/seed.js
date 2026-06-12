@@ -51,121 +51,106 @@ const seedData = async () => {
     await User.create(users);
     console.log('👥 Users seeded successfully.');
 
-    // 2. Seed Petitions
-    const petitions = [
-      {
-        id: 'PET-2026-834',
-        petitionNo: 'PET/HYD/2026/572',
-        date: 'Just now',
-        complainant: 'Ravi Kumar Sharma',
-        accused: 'Suresh Reddy and Ramu @ Ramesh',
-        sections: ['BNS 318 (Cheating)', 'BNS 120B (Criminal Conspiracy)', 'BNS 336 (Forgery)'],
-        score: 95,
-        status: 'Pending Filing',
-        blockers: [],
-        sourceFile: 'sample_fir_complaint.txt',
-        firNo: '',
-        filedAt: '',
-        district: '',
-        policeStation: '',
-        gdNumber: '',
-        incidentDate: '',
-        incidentTime: '',
-        occurrencePlace: '',
-        complainantRelative: '',
-        complainantPhone: '',
-        complainantAddress: '',
-        incidentFacts: '',
-        step1Output: 'POLICE COMPLAINT / FIR PETITION\nDate of Complaint: 09/06/2026\nComplainant: Ravi Kumar Sharma\nAccused: Suresh Reddy and Ramu @ Ramesh\nSections: Cheating, Criminal Conspiracy, Forgery.',
-        step2Output: 'POLICE COMPLAINT / FIR PETITION\nDate of Complaint: 09/06/2026\nComplainant: Ravi Kumar Sharma\nAccused: Suresh Reddy and Ramu @ Ramesh\nSections: Cheating, Criminal Conspiracy, Forgery.',
-        step3Output: { valid: true, missing_fields: [] },
-        metadata: { complainant: 'Ravi Kumar Sharma', accused: 'Suresh Reddy and Ramu @ Ramesh', sections: ['BNS 318 (Cheating)', 'BNS 120B (Criminal Conspiracy)', 'BNS 336 (Forgery)'] }
-      },
-      {
-        id: 'PET-2026-901',
-        petitionNo: 'PET/HYD/2026/901',
-        date: '1 hour ago',
-        complainant: 'A. Venkat Rao',
-        accused: 'Unknown person',
-        sections: ['BNS 303 (Theft)'],
-        score: 60,
-        status: 'Pending Filing',
-        blockers: [
-          "Missing Complainant Relative reference (Father/Husband's name)",
-          "Missing Complainant Mobile phone number contact"
-        ],
-        sourceFile: 'theft_complaint.png',
-        firNo: '',
-        filedAt: '',
-        district: '',
-        policeStation: '',
-        gdNumber: '',
-        incidentDate: '',
-        incidentTime: '',
-        occurrencePlace: '',
-        complainantRelative: '',
-        complainantPhone: '',
-        complainantAddress: '',
-        incidentFacts: '',
-        step1Output: 'COMPLAINT\nTheft of mobile phone and wallet on Banjara Hills Road No 4. Complainant: A. Venkat Rao',
-        step2Output: 'COMPLAINT\nTheft of mobile phone and wallet on Banjara Hills Road No 4. Complainant: A. Venkat Rao',
-        step3Output: { valid: false, missing_fields: ["Missing Complainant Relative reference (Father/Husband's name)", "Missing Complainant Mobile phone number contact"] },
-        metadata: { complainant: 'A. Venkat Rao', accused: 'Unknown person', sections: ['BNS 303 (Theft)'] }
-      },
-      {
-        id: 'PET-2026-102',
-        petitionNo: 'PET/HYD/2026/102',
-        date: 'Yesterday',
-        complainant: 'M. Laxmi Devi',
-        accused: 'K. Mohan Rao',
-        sections: ['BNS 84 (Dowry Harassment)'],
-        score: 95,
-        status: 'FIR Filed',
-        blockers: [],
-        sourceFile: 'dowry_harassment_petition.pdf',
-        firNo: 'FIR/HYD/2026/102',
-        filedAt: '2026-06-11, 15:45:00',
-        district: 'Hyderabad',
-        policeStation: 'PS/HYD/04',
-        gdNumber: 'GD-2026-1022',
-        incidentDate: '2026-06-10',
-        incidentTime: '10:30',
-        occurrencePlace: 'Banjara Hills, Hyderabad',
-        complainantRelative: 'K. Mohan Rao',
-        complainantPhone: '9876543220',
-        complainantAddress: 'Banjara Hills Road No 12, Hyderabad',
-        incidentFacts: 'The complainant alleged harassment for dowry by her husband K. Mohan Rao since their marriage. AI mapped BNS Section 84 for dowry harassment.',
-        step1Output: 'COMPLAINT PETITION\nHarassment for dowry by husband Mohan Rao. Complainant: M. Laxmi Devi.',
-        step2Output: 'COMPLAINT PETITION\nHarassment for dowry by husband Mohan Rao. Complainant: M. Laxmi Devi.',
-        step3Output: { valid: true, missing_fields: [] },
-        metadata: { complainant: 'M. Laxmi Devi', accused: 'K. Mohan Rao', sections: ['BNS 84 (Dowry Harassment)'] }
-      }
+    // 2. Seed 50 Dummy Petitions & FIRs
+    const petitions = [];
+    const firs = [];
+    const firstNames = ['Ravi', 'Suresh', 'Ramesh', 'Laxmi', 'Venkat', 'Mohan', 'Arun', 'Priya', 'Kavitha', 'Srinivas'];
+    const lastNames = ['Kumar', 'Sharma', 'Reddy', 'Rao', 'Devi', 'Goud', 'Yadav', 'Patil', 'Naidu', 'Chary'];
+    const bnsSections = [
+      'BNS 318 (Cheating)', 'BNS 120B (Criminal Conspiracy)', 'BNS 336 (Forgery)',
+      'BNS 84 (Dowry Harassment)', 'BNS 303 (Theft)', 'BNS 331 (House-trespass)',
+      'BNS 115 (Hurt)', 'BNS 103 (Murder)', 'BNS 351 (Assault)', 'BNS 304 (Extortion)'
     ];
+
+    for (let i = 1; i <= 50; i++) {
+      const cFirst = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const cLast = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const aFirst = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const aLast = lastNames[Math.floor(Math.random() * lastNames.length)];
+      
+      const complainantName = `${cFirst} ${cLast}`;
+      const accusedName = `${aFirst} ${aLast}`;
+      
+      const numSections = Math.floor(Math.random() * 3) + 1;
+      const selectedSections = [];
+      for (let j = 0; j < numSections; j++) {
+        const sec = bnsSections[Math.floor(Math.random() * bnsSections.length)];
+        if (!selectedSections.includes(sec)) selectedSections.push(sec);
+      }
+
+      const score = Math.floor(Math.random() * 41) + 60; // 60 to 100
+      let status = 'Pending Filing';
+      const blockers = [];
+      let step3Valid = true;
+
+      if (score < 80) {
+        blockers.push("Missing Complainant Relative reference (Father/Husband's name)");
+        step3Valid = false;
+      }
+      
+      let firNo = '';
+      let filedAt = '';
+      if (score >= 90 && Math.random() > 0.5) {
+        status = 'FIR Filed';
+        firNo = `FIR/HYD/2026/${1000 + i}`;
+        filedAt = new Date().toISOString();
+      }
+
+      const petitionData = {
+        id: `PET-2026-${1000 + i}`,
+        petitionNo: `PET/HYD/2026/${1000 + i}`,
+        date: i % 3 === 0 ? 'Yesterday' : (i % 2 === 0 ? 'Just now' : '1 hour ago'),
+        complainant: complainantName,
+        accused: accusedName,
+        sections: selectedSections,
+        score: score,
+        status: status,
+        blockers: blockers,
+        sourceFile: `complaint_doc_${i}.pdf`,
+        firNo: firNo,
+        filedAt: filedAt,
+        district: firNo ? 'Hyderabad' : '',
+        policeStation: firNo ? 'PS/HYD/04' : '',
+        gdNumber: firNo ? `GD-2026-${2000 + i}` : '',
+        incidentDate: firNo ? '2026-06-10' : '',
+        incidentTime: firNo ? '10:30' : '',
+        occurrencePlace: firNo ? 'Banjara Hills, Hyderabad' : '',
+        complainantRelative: firNo ? aLast : '',
+        complainantPhone: firNo ? `9876543${100 + i}` : '',
+        complainantAddress: firNo ? 'Banjara Hills, Hyderabad' : '',
+        incidentFacts: `Complaint by ${complainantName} against ${accusedName} regarding ${selectedSections.join(', ')}`,
+        step1Output: `COMPLAINT\nComplainant: ${complainantName}\nAccused: ${accusedName}\nSections: ${selectedSections.join(', ')}`,
+        step2Output: `COMPLAINT\nComplainant: ${complainantName}\nAccused: ${accusedName}\nSections: ${selectedSections.join(', ')}`,
+        step3Output: { valid: step3Valid, missing_fields: blockers },
+        metadata: { complainant: complainantName, accused: accusedName, sections: selectedSections }
+      };
+
+      petitions.push(petitionData);
+
+      if (status === 'FIR Filed') {
+        firs.push({
+          firNo: petitionData.firNo,
+          petitionId: petitionData.id,
+          complainant: petitionData.complainant,
+          accused: petitionData.accused,
+          sections: petitionData.sections,
+          filedAt: petitionData.filedAt,
+          district: petitionData.district,
+          policeStation: petitionData.policeStation,
+          gdNumber: petitionData.gdNumber,
+          incidentDate: petitionData.incidentDate,
+          incidentTime: petitionData.incidentTime,
+          occurrencePlace: petitionData.occurrencePlace,
+          complainantRelative: petitionData.complainantRelative,
+          complainantPhone: petitionData.complainantPhone,
+          complainantAddress: petitionData.complainantAddress,
+          incidentFacts: petitionData.incidentFacts
+        });
+      }
+    }
 
     await Petition.create(petitions);
     console.log('📄 Petitions seeded successfully.');
-
-    // 3. Seed matching FIR
-    const firs = [
-      {
-        firNo: 'FIR/HYD/2026/102',
-        petitionId: 'PET-2026-102',
-        complainant: 'M. Laxmi Devi',
-        accused: 'K. Mohan Rao',
-        sections: ['BNS 84 (Dowry Harassment)'],
-        filedAt: '2026-06-11, 15:45:00',
-        district: 'Hyderabad',
-        policeStation: 'PS/HYD/04',
-        gdNumber: 'GD-2026-1022',
-        incidentDate: '2026-06-10',
-        incidentTime: '10:30',
-        occurrencePlace: 'Banjara Hills, Hyderabad',
-        complainantRelative: 'K. Mohan Rao',
-        complainantPhone: '9876543220',
-        complainantAddress: 'Banjara Hills Road No 12, Hyderabad',
-        incidentFacts: 'The complainant alleged harassment for dowry by her husband K. Mohan Rao since their marriage. AI mapped BNS Section 84 for dowry harassment.'
-      }
-    ];
 
     await FIR.create(firs);
     console.log('🚔 Filed FIRs seeded successfully.');

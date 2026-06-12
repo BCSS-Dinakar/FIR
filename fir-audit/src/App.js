@@ -9,6 +9,7 @@ import FIRAnalytics from './pages/FIRAnalytics';
 import FIRSettings from './pages/FIRSettings';
 import FIRBlockers from './pages/FIRBlockers';
 import FileFIR from './pages/FileFIR';
+import FIRDocument from './pages/FIRDocument';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
             <Route path="analytics" element={<FIRAnalytics />} />
             <Route path="blockers" element={<FIRBlockers />} />
             <Route path="settings" element={<FIRSettings />} />
+            <Route path="fir-document/:id" element={<FIRDocument />} />
           </Route>
         </Routes>
       </BrowserRouter>

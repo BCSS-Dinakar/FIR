@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FileFIRForm from '../components/reusable/FileFIRForm';
-import { getFIRStatusBoard, getPetitionById, updatePetition, createFir } from '../api/petition';
+import { getFIRStatusBoard, updatePetition, createFir } from '../api/petition';
 import { useGlobals } from '../context/GlobalsContext';
 
 const ALL_BNS_SECTIONS = [
@@ -67,50 +67,7 @@ export default function FIROverview() {
 
   const fetchDataRef = useRef(null);
 
-  const handleOpenRegistration = async (petition) => {
-    try {
-      const fullPetition = await getPetitionById(petition.id);
-      setSelectedPetition(fullPetition);
-      setModalSections(fullPetition.sections || []);
 
-      setFormData({
-        district: 'Hyderabad',
-        policeStation: 'PS/HYD/04',
-        gdNumber: `GD-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        incidentDate: new Date().toISOString().substring(0, 10),
-        incidentTime: '12:00',
-        distanceDirection: '3 km South',
-        beatNumber: 'Beat No. 4',
-        occurrencePlace: 'Banjara Hills Road No 4, Hyderabad',
-        complainant: fullPetition.complainant || '',
-        complainantRelative: 'K. Srinivasa Rao',
-        nationality: 'Indian',
-        complainantPhone: '9876543210',
-        complainantAddress: 'Flat 202, Green Meadows, Hyderabad',
-        accused: fullPetition.accused || '',
-        accusedCount: (fullPetition.accused && fullPetition.accused.includes('2 persons')) ? 2 : 1,
-        accusedDescription: (fullPetition.accused && fullPetition.accused.includes('2 persons')) ? 'Unknown 2 persons, height approx 5\'8"' : 'Identified accused face matching record',
-        incidentFacts: `A formal complaint petition was uploaded regarding BNS sections: ${(fullPetition.sections || []).join(', ')} alleging misconduct/offence by ${fullPetition.accused || 'Unknown'} as reported by ${fullPetition.complainant || 'Unknown'}. Compliance checks completed with a score of ${fullPetition.score || 0}/100.`
-      });
-
-      setModalStage('idle');
-      setModalLogs([]);
-      setGeneratedFIRNo('');
-    } catch (err) {
-      console.error('Failed to load petition details:', err);
-      alert('Failed to load petition details. Please try again.');
-    }
-  };
-
-  const handleOpenReport = async (petition) => {
-    try {
-      const fullPetition = await getPetitionById(petition.id);
-      setViewReportPetition(fullPetition);
-    } catch (err) {
-      console.error('Failed to load petition report:', err);
-      alert('Failed to load report. Please try again.');
-    }
-  };
 
   const runRegistration = () => {
     if (!selectedPetition) return;
@@ -519,7 +476,7 @@ export default function FIROverview() {
                   <td className="px-6 py-4 text-right">
                     {item.status === 'FIR Filed' ? (
                       <FIRButton
-                        onClick={() => handleOpenReport(item)}
+                        onClick={() => navigate(`/dashboard/fir-document/${item.id}`)}
                         variant="secondary"
                         dark={dark}
                         className="px-3 py-1.5 text-[11px]"
@@ -528,7 +485,7 @@ export default function FIROverview() {
                       </FIRButton>
                     ) : item.status === 'Pending Filing' ? (
                       <FIRButton
-                        onClick={() => handleOpenRegistration(item)}
+                        onClick={() => navigate(`/dashboard/fir-document/${item.id}`)}
                         variant="solid"
                         className="px-3 py-1.5 text-[11px]"
                       >
