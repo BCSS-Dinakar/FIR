@@ -315,22 +315,87 @@ export default function FIRDocument() {
     };
 
     const firRecord = {
+      // Core
       firNo: newFirNumber,
       petitionId: petition.id,
-      complainant: formData.complainantName,
-      accused: accusedList.map(a => a.name).join(', '),
-      sections: modalSections,
       filedAt: new Date().toLocaleString(),
-      district: formData.district,
-      policeStation: formData.policeStation,
-      gdNumber: formData.gdEntryNo,
-      incidentDate: formData.occurrenceDateFrom,
-      incidentTime: formData.occurrenceTimeFrom,
-      occurrencePlace: formData.occurrenceAddress,
-      complainantRelative: formData.complainantRelative,
-      complainantPhone: formData.complainantMobile,
-      complainantAddress: formData.complainantAddress,
-      incidentFacts: formData.incidentFacts
+
+      // Section 1
+      district:       formData.district,
+      policeStation:  formData.policeStation,
+      year:           formData.year,
+      firDate:        formData.firDate,
+      firTime:        formData.firTime,
+
+      // Section 2
+      sections: modalSections,
+
+      // Section 3
+      occurrenceDay:      formData.occurrenceDay,
+      occurrenceDateFrom: formData.occurrenceDateFrom,
+      occurrenceTimeFrom: formData.occurrenceTimeFrom,
+      occurrenceDateTo:   formData.occurrenceDateTo,
+      occurrenceTimeTo:   formData.occurrenceTimeTo,
+      priorToTimePeriod:  formData.priorToTimePeriod,
+      receivedDate:       formData.receivedDate,
+      receivedTime:       formData.receivedTime,
+      gdEntryNo:          formData.gdEntryNo,
+      gdDateTime:         formData.gdDateTime,
+
+      // Section 4
+      typeOfInformation: formData.typeOfInformation,
+
+      // Section 5
+      distanceDirection:    formData.distanceDirection,
+      beatNo:               formData.beatNo,
+      occurrenceAddress:    formData.occurrenceAddress,
+      outsideLimitPSName:   formData.outsideLimitPSName,
+      outsideLimitDistrict: formData.outsideLimitDistrict,
+
+      // Section 6
+      complainant:                   formData.complainantName,
+      complainantRelative:           formData.complainantRelative,
+      complainantDob:                formData.complainantDob,
+      complainantAge:                formData.complainantAge,
+      complainantNationality:        formData.complainantNationality,
+      complainantCaste:              formData.complainantCaste,
+      complainantPassport:           formData.complainantPassport,
+      complainantPassportIssueDate:  formData.complainantPassportIssueDate,
+      complainantPassportIssuePlace: formData.complainantPassportIssuePlace,
+      complainantOccupation:         formData.complainantOccupation,
+      complainantPhone:              formData.complainantMobile,
+      complainantAddress:            formData.complainantAddress,
+
+      // Section 7
+      accused:     accusedList.map(a => a.name).join(', '),
+      accusedList: accusedList,
+
+      // Section 8
+      reasonsForDelay: formData.reasonsForDelay,
+
+      // Section 9 & 10
+      propertiesStolen: formData.propertiesStolen,
+      totalValueStolen: formData.totalValueStolen,
+
+      // Section 11
+      inquestReport: formData.inquestReport,
+
+      // Section 12
+      incidentFacts: formData.incidentFacts,
+
+      // Section 13
+      actionTaken:               formData.actionTaken,
+      refusedInvestigationDueTo: formData.refusedInvestigationDueTo,
+      transferredPS:             formData.transferredPS,
+      transferredDistrict:       formData.transferredDistrict,
+
+      // Section 14
+      officerName: formData.officerName,
+      officerRank: formData.officerRank,
+      officerNo:   formData.officerNo,
+
+      // Section 15
+      dispatchDateTime: formData.dispatchDateTime
     };
 
     try {
