@@ -105,7 +105,7 @@ export default function FIRLayout() {
       </aside>
 
       {/* Main Content Area — header is sticky, main scrolls */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 z-10 relative">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
         <Header
           dark={dark}
           setDark={setDark}
