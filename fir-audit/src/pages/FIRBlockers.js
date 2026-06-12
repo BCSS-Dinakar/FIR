@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FIRBadge from '../components/reusable/FIRBadge';
-import { getPetitions, updatePetition } from '../api/petition';
+import { updatePetition, getMistakesAndWarnings } from '../api/petition';
 
 export default function FIRBlockers() {
   const { dark } = useOutletContext();
@@ -13,12 +13,23 @@ export default function FIRBlockers() {
   const [itemsPerPage, setItemsPerPage] = useState(2);
   const [resolvingBlocker, setResolvingBlocker] = useState(null); // Tracks which blocker is being resolved
 
+  const [stats, setStats] = useState({
+    activeMistakes: 0,
+    avgResolutionTime: "47 min",
+    resolvedToday: "11"
+  });
+
   // Load from backend on mount
   useEffect(() => {
     const loadPetitions = async () => {
       try {
-        const data = await getPetitions({ hasBlockers: 'true' });
-        setPetitions(data);
+        const data = await getMistakesAndWarnings();
+        if (data && data.success) {
+          setPetitions(data.petitions || []);
+          if (data.stats) {
+            setStats(data.stats);
+          }
+        }
       } catch (err) {
         console.error('Failed to load petitions:', err);
       }
@@ -75,6 +86,11 @@ export default function FIRBlockers() {
         return p;
       });
       setPetitions(updatedList);
+      setStats(prev => ({
+        ...prev,
+        activeMistakes: Math.max(0, prev.activeMistakes - 1),
+        resolvedToday: (parseInt(prev.resolvedToday) + 1).toString()
+      }));
 
       // Adjust page index if necessary
       const nextActiveBlockersCount = activeBlockers.length - 1;
@@ -118,9 +134,9 @@ export default function FIRBlockers() {
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
-          { label: 'Active Mistakes', val: activeBlockers.length.toString(), color: 'text-red-500', sub: 'Filing locked until fixed' },
-          { label: 'Avg. Resolution Time', val: '47 min', color: 'text-amber-500', sub: 'This week' },
-          { label: 'Resolved Today', val: '11', color: 'text-emerald-500', sub: 'Since 08:00 hrs' },
+          { label: 'Active Mistakes', val: stats.activeMistakes.toString(), color: 'text-red-500', sub: 'Filing locked until fixed' },
+          { label: 'Avg. Resolution Time', val: stats.avgResolutionTime, color: 'text-amber-500', sub: 'This week' },
+          { label: 'Resolved Today', val: stats.resolvedToday, color: 'text-emerald-500', sub: 'Since 08:00 hrs' },
         ].map((s) => (
           <FIRCard key={s.label} dark={dark} noPadding className="p-4">
             <div className={`text-xl font-black ${s.color}`}>{s.val}</div>

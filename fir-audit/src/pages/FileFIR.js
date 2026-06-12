@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FileFIRForm from '../components/reusable/FileFIRForm';
-import { getPetitions, updatePetition, createFir, getPetitionById } from '../api/petition';
+import { updatePetition, createFir, getPetitionById, getDraftAndFileFIR } from '../api/petition';
 
 
 
@@ -59,12 +59,23 @@ export default function FileFIR() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(3);
 
+  const [stats, setStats] = useState({
+    totalScanned: 0,
+    pendingFiling: 0,
+    firsRegistered: 0
+  });
+
   // Load data from backend database
   useEffect(() => {
     const loadPetitions = async () => {
       try {
-        const data = await getPetitions({ hasBlockers: 'false' });
-        setPetitions(data);
+        const data = await getDraftAndFileFIR();
+        if (data && data.success) {
+          setPetitions(data.petitions || []);
+          if (data.stats) {
+            setStats(data.stats);
+          }
+        }
       } catch (err) {
         console.error('Failed to load petitions:', err);
       }
@@ -116,8 +127,8 @@ export default function FileFIR() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedPetitions = filteredPetitions.slice(startIndex, startIndex + itemsPerPage);
 
-  const countPending = petitions.filter(p => p.status === 'Pending Filing').length;
-  const countFiled = petitions.filter(p => p.status === 'FIR Filed').length;
+  const countPending = stats.pendingFiling;
+  const countFiled = stats.firsRegistered;
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
@@ -247,6 +258,11 @@ export default function FileFIR() {
               setSelectedPetition(updatedPet);
               const updatedList = petitions.map(p => p.id === selectedPetition.id ? updatedPet : p);
               setPetitions(updatedList);
+              setStats(prev => ({
+                ...prev,
+                pendingFiling: Math.max(0, prev.pendingFiling - 1),
+                firsRegistered: prev.firsRegistered + 1
+              }));
               setModalStage('success');
             } catch (err) {
               console.error('Failed to register FIR in database:', err);
@@ -370,7 +386,7 @@ export default function FileFIR() {
         {[
           {
             title: 'Total Scanned Petitions',
-            val: petitions.length,
+            val: stats.totalScanned,
             colorClass: 'text-blue-500',
             bgIcon: (
               <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -146,3 +146,20 @@ export const getPetitionById = async (id) => {
   const response = await API.get(`/api/petitions/${id}`);
   return response.data;
 };
+
+/**
+ * Fetches petitions and stats for the Draft & File page.
+ */
+export const getDraftAndFileFIR = async () => {
+  const response = await API.get('/api/petitions/draftandfile');
+  return response.data;
+};
+
+/**
+ * Fetches petitions and stats for the Mistakes & Warnings page.
+ */
+export const getMistakesAndWarnings = async () => {
+  const response = await API.get('/api/petitions/mistakesandwarnings');
+  return response.data;
+};
+

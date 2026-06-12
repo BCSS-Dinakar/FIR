@@ -46,6 +46,76 @@ const formatPetition = (p) => {
 };
 
 /**
+ * @route   GET /api/petitions/draftandfile
+ * @desc    Get petitions without blockers and associated stats for the File FIR page
+ * @access  Public
+ */
+router.get('/draftandfile', async (req, res) => {
+  try {
+    const petitions = await Petition.find({
+      $or: [
+        { blockers: { $exists: false } },
+        { blockers: { $size: 0 } }
+      ]
+    }).select('id petitionNo date complainant accused sections score status blockers sourceFile firNo filedAt district policeStation gdNumber incidentDate incidentTime occurrencePlace complainantRelative complainantPhone complainantAddress incidentFacts createdAt updatedAt').sort({ createdAt: -1 });
+
+    const formatted = petitions.map(p => formatPetition(p));
+
+    const totalScanned = await Petition.countDocuments();
+    const pendingFiling = await Petition.countDocuments({ status: 'Pending Filing' });
+    const firsRegistered = await Petition.countDocuments({ status: 'FIR Filed' });
+
+    return res.status(200).json({
+      success: true,
+      petitions: formatted,
+      stats: {
+        totalScanned,
+        pendingFiling,
+        firsRegistered
+      }
+    });
+  } catch (error) {
+    console.error('Fetch draftandfile error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/petitions/mistakesandwarnings
+ * @desc    Get petitions with blockers and associated stats for the Mistakes page
+ * @access  Public
+ */
+router.get('/mistakesandwarnings', async (req, res) => {
+  try {
+    const petitions = await Petition.find({
+      blockers: { $exists: true, $not: { $size: 0 } }
+    }).select('id petitionNo date complainant accused sections score status blockers sourceFile firNo filedAt district policeStation gdNumber incidentDate incidentTime occurrencePlace complainantRelative complainantPhone complainantAddress incidentFacts createdAt updatedAt').sort({ createdAt: -1 });
+
+    const formatted = petitions.map(p => formatPetition(p));
+
+    const activeMistakesCountResult = await Petition.aggregate([
+      { $match: { status: { $ne: 'FIR Filed' } } },
+      { $project: { numBlockers: { $cond: { if: { $isArray: '$blockers' }, then: { $size: '$blockers' }, else: 0 } } } },
+      { $group: { _id: null, total: { $sum: '$numBlockers' } } }
+    ]);
+    const activeMistakes = activeMistakesCountResult[0]?.total || 0;
+
+    return res.status(200).json({
+      success: true,
+      petitions: formatted,
+      stats: {
+        activeMistakes,
+        avgResolutionTime: "47 min",
+        resolvedToday: "11"
+      }
+    });
+  } catch (error) {
+    console.error('Fetch mistakesandwarnings error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * @route   GET /api/petitions/analytics
  * @desc    Get optimized compliance scores and blocker distributions for analytics charting
  * @access  Public
@@ -160,10 +230,37 @@ router.get('/firstatusboard', async (req, res) => {
 
     const formattedPetitions = petitions.map(p => formatPetition(p));
 
+    const totalChecked = await Petition.countDocuments();
+    const pendingReview = await Petition.countDocuments({
+      status: 'Pending Filing',
+      $or: [
+        { blockers: { $exists: false } },
+        { blockers: { $size: 0 } }
+      ]
+    });
+
+    const avgAccuracyResult = await Petition.aggregate([
+      { $group: { _id: null, avgScore: { $avg: "$score" } } }
+    ]);
+    const avgAccuracy = avgAccuracyResult[0]?.avgScore ? avgAccuracyResult[0].avgScore.toFixed(1) + '%' : '0%';
+
+    const unresolvedResult = await Petition.aggregate([
+      { $match: { status: { $ne: 'FIR Filed' } } },
+      { $project: { numBlockers: { $cond: { if: { $isArray: '$blockers' }, then: { $size: '$blockers' }, else: 0 } } } },
+      { $group: { _id: null, total: { $sum: '$numBlockers' } } }
+    ]);
+    const unresolvedMistakes = unresolvedResult[0]?.total || 0;
+
     return res.status(200).json({
       success: true,
       petitions: formattedPetitions,
-      firs
+      firs,
+      stats: {
+        totalChecked,
+        pendingReview,
+        avgAccuracy,
+        unresolvedMistakes
+      }
     });
   } catch (error) {
     console.error('Fetch statusboard error:', error);

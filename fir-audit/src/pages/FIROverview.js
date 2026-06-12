@@ -15,6 +15,13 @@ export default function FIROverview() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(3);
 
+  const [stats, setStats] = useState({
+    totalChecked: 0,
+    pendingReview: 0,
+    avgAccuracy: '0%',
+    unresolvedMistakes: 0
+  });
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -22,6 +29,9 @@ export default function FIROverview() {
         if (data && data.success) {
           setPetitions(data.petitions || []);
           setFirs(data.firs || []);
+          if (data.stats) {
+            setStats(data.stats);
+          }
         }
       } catch (err) {
         console.error('Failed to load overview data:', err);
@@ -66,13 +76,11 @@ export default function FIROverview() {
     return 'bg-red-500/10 text-red-500 animate-pulse';
   };
 
-  // Compute live statistics
-  const totalChecked = petitions.length;
-  const pendingReview = petitions.filter(p => p.status === 'Pending Filing' && (!p.blockers || p.blockers.length === 0)).length;
-  const avgAccuracy = petitions.length > 0
-    ? (petitions.reduce((acc, p) => acc + p.score, 0) / petitions.length).toFixed(1) + '%'
-    : '0%';
-  const unresolvedMistakes = petitions.reduce((acc, p) => acc + (p.status !== 'FIR Filed' ? (p.blockers?.length || 0) : 0), 0);
+  // Live statistics from backend API response
+  const totalChecked = stats.totalChecked;
+  const pendingReview = stats.pendingReview;
+  const avgAccuracy = stats.avgAccuracy;
+  const unresolvedMistakes = stats.unresolvedMistakes;
 
   if (loading) {
     return (
