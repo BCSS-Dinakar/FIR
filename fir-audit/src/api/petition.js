@@ -115,6 +115,11 @@ export const createFir = async (data) => {
   return response.data;
 };
 
+export const getFirByPetitionId = async (petitionId) => {
+  const response = await API.get(`/api/firs/by-petition/${petitionId}`);
+  return response.data;
+};
+
 /**
  * Fetches data for the status board (all petitions and FIRs in one request).
  */

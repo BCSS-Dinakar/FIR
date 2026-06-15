@@ -3,7 +3,7 @@ import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import SectionSelector from '../components/reusable/SectionSelector';
-import { getPetitionById, updatePetition, createFir } from '../api/petition';
+import { getPetitionById, updatePetition, createFir, getFirByPetitionId } from '../api/petition';
 
 
 
@@ -16,24 +16,24 @@ export default function FIRDocument() {
 
   // 15 Section states
   const [formData, setFormData] = useState({
-    district: 'Adilabad',
-    policeStation: 'Adilabad-I Town',
-    year: '2025',
+    district: '',
+    policeStation: '',
+    year: '',
     firNo: '',
     firDate: '',
     firTime: '',
-    occurrenceDay: 'Tuesday',
+    occurrenceDay: '',
     occurrenceDateFrom: '',
     occurrenceTimeFrom: '',
     occurrenceDateTo: '',
     occurrenceTimeTo: '',
-    priorToTimePeriod: 'Prior To Time Period',
+    priorToTimePeriod: '',
     receivedDate: '',
     receivedTime: '',
     gdEntryNo: '',
     gdDateTime: '',
-    typeOfInformation: 'Written',
-    distanceDirection: '2 km, East',
+    typeOfInformation: '',
+    distanceDirection: '',
     beatNo: '',
     occurrenceAddress: '',
     outsideLimitPSName: '',
@@ -41,25 +41,25 @@ export default function FIRDocument() {
     complainantName: '',
     complainantRelative: '',
     complainantDob: '',
-    complainantAge: '54 Years',
-    complainantNationality: 'India',
-    complainantCaste: 'Perika',
+    complainantAge: '',
+    complainantNationality: '',
+    complainantCaste: '',
     complainantPassport: '',
     complainantPassportIssueDate: '',
     complainantPassportIssuePlace: '',
-    complainantOccupation: 'Police officer',
+    complainantOccupation: '',
     complainantMobile: '',
     complainantAddress: '',
-    reasonsForDelay: 'No delay',
+    reasonsForDelay: '',
     propertiesStolen: '',
-    totalValueStolen: '0',
+    totalValueStolen: '',
     inquestReport: '',
     incidentFacts: '',
-    actionTaken: '1) Registered the case and took up the investigation',
+    actionTaken: '',
     dispatchDateTime: '',
-    officerName: 'BOMMAGANI SUNIL KUMAR',
-    officerRank: 'Inspector',
-    officerNo: '6185'
+    officerName: '',
+    officerRank: '',
+    officerNo: ''
   });
 
   const [modalSections, setModalSections] = useState([]);
@@ -82,76 +82,76 @@ export default function FIRDocument() {
           const names = p.accused.split(/\s+and\s+|\s*,\s*/i);
           mappedAccused = names.map(name => ({
             name: name.trim(),
-            relative: 'Venkatesh',
-            occupation: 'Labourer',
-            caste: 'Madiga',
-            gender: 'Male',
-            age: '21',
-            nationality: 'India',
+            relative: '',
+            occupation: '',
+            caste: '',
+            gender: '',
+            age: '',
+            nationality: '',
             houseNo: '',
-            street: 'KRK Colony',
-            area: 'Mavala',
-            city: 'ADILABAD',
-            state: 'TELANGANA',
+            street: '',
+            area: '',
+            city: '',
+            state: '',
             pin: '',
             phoneOff: '',
             phoneResi: '',
             cellNo: '',
             email: '',
             dob: '',
-            build: 'Medium',
-            height: '170',
-            complexion: 'Wheatish',
-            idMarks: 'A scar on right hand',
-            deformities: 'None',
+            build: '',
+            height: '',
+            complexion: '',
+            idMarks: '',
+            deformities: '',
             teeth: '',
             hair: '',
             eyes: '',
             habits: '',
             dressHabits: '',
             languages: '',
-            burnMark: 'No',
-            leucoderma: 'No',
-            mole: 'Mole on neck',
-            scar: 'Scar on right hand',
-            tattoo: 'No'
+            burnMark: '',
+            leucoderma: '',
+            mole: '',
+            scar: '',
+            tattoo: ''
           }));
         } else {
           mappedAccused = [{
-            name: 'Vamshi Krishnapelli',
-            relative: 'Venkatesh',
-            occupation: 'Mason',
-            caste: 'Madiga',
-            gender: 'Male',
-            age: '21',
-            nationality: 'India',
+            name: '',
+            relative: '',
+            occupation: '',
+            caste: '',
+            gender: '',
+            age: '',
+            nationality: '',
             houseNo: '',
-            street: 'KRK Colony',
-            area: 'Mavala',
-            city: 'ADILABAD',
-            state: 'TELANGANA',
+            street: '',
+            area: '',
+            city: '',
+            state: '',
             pin: '',
             phoneOff: '',
             phoneResi: '',
             cellNo: '',
             email: '',
             dob: '',
-            build: 'Medium',
-            height: '168',
-            complexion: 'Wheatish',
-            idMarks: 'A scar on right hand',
-            deformities: 'None',
+            build: '',
+            height: '',
+            complexion: '',
+            idMarks: '',
+            deformities: '',
             teeth: '',
             hair: '',
             eyes: '',
             habits: '',
             dressHabits: '',
             languages: '',
-            burnMark: 'No',
-            leucoderma: 'No',
-            mole: 'Mole on neck',
-            scar: 'Scar on right hand',
-            tattoo: 'No'
+            burnMark: '',
+            leucoderma: '',
+            mole: '',
+            scar: '',
+            tattoo: ''
           }];
         }
         setAccusedList(mappedAccused);
@@ -161,54 +161,66 @@ export default function FIRDocument() {
         const currentDateStr = new Date().toISOString().substring(0, 10);
         const currentTimeStr = new Date().toTimeString().substring(0, 8);
 
+        let firData = {};
+        if (p.status === 'FIR Filed') {
+          try {
+            firData = await getFirByPetitionId(p.id);
+            if (firData.accusedList && firData.accusedList.length > 0) {
+              setAccusedList(firData.accusedList);
+            }
+          } catch (e) {
+            console.error('Failed to fetch FIR data for petition:', e);
+          }
+        }
+
         setFormData({
-          district: p.district || 'Adilabad',
-          policeStation: p.policeStation || 'Adilabad-I Town',
-          year: p.year || currentYear,
-          firNo: p.firNo || `109/${currentYear}`,
-          firDate: p.incidentDate || currentDateStr,
-          firTime: p.incidentTime || currentTimeStr,
-          occurrenceDay: 'Tuesday',
-          occurrenceDateFrom: p.incidentDate || currentDateStr,
-          occurrenceTimeFrom: p.incidentTime || '10:30:00',
-          occurrenceDateTo: '',
-          occurrenceTimeTo: '',
-          priorToTimePeriod: 'Prior To Time Period',
-          receivedDate: p.date && p.date !== 'Just now' && p.date !== 'Yesterday' ? p.date : currentDateStr,
-          receivedTime: currentTimeStr,
-          gdEntryNo: p.gdNumber || `262`,
-          gdDateTime: `${p.incidentDate || currentDateStr} ${p.incidentTime || '13:00:00'}`,
-          typeOfInformation: 'Written',
-          distanceDirection: p.distanceDirection || '2 km, East',
-          beatNo: p.beatNumber || '',
-          occurrenceAddress: p.occurrencePlace || 'Nearby Crystal Gardens, Khanapur, Adilabad',
-          outsideLimitPSName: '',
-          outsideLimitDistrict: '',
-          complainantName: p.complainant || '',
-          complainantRelative: p.complainantRelative || 'Sudharshan',
-          complainantDob: '',
-          complainantAge: '54 Years',
-          complainantNationality: 'India',
-          complainantCaste: 'Perika',
-          complainantPassport: '',
-          complainantPassportIssueDate: '',
-          complainantPassportIssuePlace: '',
-          complainantOccupation: 'Police officer',
-          complainantMobile: p.complainantPhone || '9441012899',
-          complainantAddress: p.complainantAddress || 'House No Area/Mandal Adilabad Street/Village City/District ADILABAD State TELANGANA',
-          reasonsForDelay: p.reasonsForDelay || 'No delay',
-          propertiesStolen: p.propertiesStolen || '',
-          totalValueStolen: p.totalValueStolen || '920',
-          inquestReport: p.inquestReport || '',
-          incidentFacts: p.incidentFacts || p.step1Output || '',
-          actionTaken: p.actionTaken || '1',
-          refusedInvestigationDueTo: '',
-          transferredPS: '',
-          transferredDistrict: '',
-          dispatchDateTime: `${p.incidentDate || currentDateStr} 13:30:00`,
-          officerName: 'BOMMAGANI SUNIL KUMAR',
-          officerRank: 'Inspector',
-          officerNo: '6185'
+          district: firData.district || '',
+          policeStation: firData.policeStation || '',
+          year: firData.year || currentYear,
+          firNo: firData.firNo || p.firNo || '',
+          firDate: firData.firDate || p.incidentDate || currentDateStr,
+          firTime: firData.firTime || p.incidentTime || currentTimeStr,
+          occurrenceDay: firData.occurrenceDay || '',
+          occurrenceDateFrom: firData.occurrenceDateFrom || p.incidentDate || currentDateStr,
+          occurrenceTimeFrom: firData.occurrenceTimeFrom || p.incidentTime || currentTimeStr,
+          occurrenceDateTo: firData.occurrenceDateTo || '',
+          occurrenceTimeTo: firData.occurrenceTimeTo || '',
+          priorToTimePeriod: firData.priorToTimePeriod || '',
+          receivedDate: firData.receivedDate || (p.date && p.date !== 'Just now' && p.date !== 'Yesterday' ? p.date : currentDateStr),
+          receivedTime: firData.receivedTime || currentTimeStr,
+          gdEntryNo: firData.gdEntryNo || '',
+          gdDateTime: firData.gdDateTime || `${p.incidentDate || currentDateStr} ${p.incidentTime || currentTimeStr}`,
+          typeOfInformation: firData.typeOfInformation || '',
+          distanceDirection: firData.distanceDirection || '',
+          beatNo: firData.beatNo || '',
+          occurrenceAddress: firData.occurrenceAddress || p.occurrencePlace || '',
+          outsideLimitPSName: firData.outsideLimitPSName || '',
+          outsideLimitDistrict: firData.outsideLimitDistrict || '',
+          complainantName: firData.complainant || p.complainant || '',
+          complainantRelative: firData.complainantRelative || '',
+          complainantDob: firData.complainantDob || '',
+          complainantAge: firData.complainantAge || '',
+          complainantNationality: firData.complainantNationality || '',
+          complainantCaste: firData.complainantCaste || '',
+          complainantPassport: firData.complainantPassport || '',
+          complainantPassportIssueDate: firData.complainantPassportIssueDate || '',
+          complainantPassportIssuePlace: firData.complainantPassportIssuePlace || '',
+          complainantOccupation: firData.complainantOccupation || '',
+          complainantMobile: firData.complainantPhone || '',
+          complainantAddress: firData.complainantAddress || '',
+          reasonsForDelay: firData.reasonsForDelay || '',
+          propertiesStolen: firData.propertiesStolen || '',
+          totalValueStolen: firData.totalValueStolen || '',
+          inquestReport: firData.inquestReport || '',
+          incidentFacts: firData.incidentFacts || p.step1Output || '',
+          actionTaken: firData.actionTaken || '',
+          refusedInvestigationDueTo: firData.refusedInvestigationDueTo || '',
+          transferredPS: firData.transferredPS || '',
+          transferredDistrict: firData.transferredDistrict || '',
+          dispatchDateTime: firData.dispatchDateTime || '',
+          officerName: firData.officerName || '',
+          officerRank: firData.officerRank || '',
+          officerNo: firData.officerNo || ''
         });
       } catch (err) {
         console.error('Error fetching petition details:', err);
@@ -238,9 +250,9 @@ export default function FIRDocument() {
       relative: '',
       occupation: '',
       caste: '',
-      gender: 'Male',
+      gender: '',
       age: '',
-      nationality: 'India',
+      nationality: '',
       houseNo: '',
       street: '',
       area: '',
@@ -417,7 +429,42 @@ export default function FIRDocument() {
       {/* Dynamic styling block for print layout */}
       <style dangerouslySetInnerHTML={{
         __html: `
+        .print-watermark, .print-header {
+          display: none;
+        }
         @media print {
+          .print-watermark {
+            display: block !important;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+            width: 80%;
+            max-width: 600px;
+          }
+          .print-header {
+            display: block !important;
+            position: fixed;
+            top: 0;
+            right: 0;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #2563eb !important;
+            z-index: 100;
+          }
+          * {
+            overflow: visible !important;
+            max-height: none !important;
+          }
+          html, body, #root {
+            height: auto !important;
+            overflow: visible !important;
+            background: white !important;
+          }
           aside, header, nav, .no-print, .print-btn-bar {
             display: none !important;
           }
@@ -426,10 +473,13 @@ export default function FIRDocument() {
             margin: 0 !important;
             background: white !important;
             color: black !important;
+            height: auto !important;
           }
           .main-content-wrapper, .space-y-6 {
             padding: 0 !important;
             margin: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
           }
           .print-full-page {
             border: none !important;
@@ -479,7 +529,13 @@ export default function FIRDocument() {
       </div>
 
       {/* Document layout container */}
-      <FIRCard dark={dark} noPadding className="p-8 w-full shadow-2xl border print-full-page bg-white text-black border-black/15">
+      <FIRCard dark={dark} noPadding className="p-8 w-full shadow-2xl border print-full-page bg-white text-black border-black/15 relative z-10 pt-16">
+
+        {/* Top Right Header (visible only on print) */}
+        <div className="print-header">FIRAudit.ai</div>
+
+        {/* Watermark Logo (visible only on print) */}
+        <img src="/bluecloud-logo-colored.png" alt="Blue Cloud Softech Solutions" className="print-watermark" />
 
         {/* Document Header */}
         <div className="text-center space-y-1.5 border-b-2 border-black pb-5 mb-6">

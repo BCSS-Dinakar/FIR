@@ -69,19 +69,18 @@ const PetitionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  // Custom CCTNS fields (stored if filed)
-  district: { type: String, default: '' },
-  policeStation: { type: String, default: '' },
-  gdNumber: { type: String, default: '' },
-  incidentDate: { type: String, default: '' },
-  incidentTime: { type: String, default: '' },
-  occurrencePlace: { type: String, default: '' },
-  complainantRelative: { type: String, default: '' },
-  complainantPhone: { type: String, default: '' },
-  complainantAddress: { type: String, default: '' },
-  incidentFacts: { type: String, default: '' }
+
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+PetitionSchema.virtual('firRecord', {
+  ref: 'FIR',
+  localField: 'firNo',
+  foreignField: 'firNo',
+  justOne: true
 });
 
 module.exports = mongoose.model('Petition', PetitionSchema);

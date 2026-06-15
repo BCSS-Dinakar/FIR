@@ -12,6 +12,34 @@ const SAMPLE_FILES = [
     icon: '📄',
     url: '/samples/sample_fir_complaint.txt',
   },
+  {
+    name: 'valid_01_english_typed_cyberfraud.txt',
+    label: 'Valid: Cyberfraud (English)',
+    desc: 'Typed · Cybercrime',
+    icon: '✅',
+    url: '/samples/valid_01_english_typed_cyberfraud.txt',
+  },
+  {
+    name: 'valid_02_telugu_typed_domestic_violence.txt',
+    label: 'Valid: Domestic Violence (Telugu)',
+    desc: 'Typed · Telugu',
+    icon: '✅',
+    url: '/samples/valid_02_telugu_typed_domestic_violence.txt',
+  },
+  {
+    name: 'invalid_01_english_too_vague.txt',
+    label: 'Invalid: Vague Complaint',
+    desc: 'Too vague · Missing Details',
+    icon: '❌',
+    url: '/samples/invalid_01_english_too_vague.txt',
+  },
+  {
+    name: 'invalid_02_telugu_handwritten_missing_details.txt',
+    label: 'Invalid: Missing Details (Telugu)',
+    desc: 'Telugu · Missing Location',
+    icon: '❌',
+    url: '/samples/invalid_02_telugu_handwritten_missing_details.txt',
+  }
 ];
 
 const PROCESSING_STEPS = [

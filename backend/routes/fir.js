@@ -43,4 +43,22 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * @route   GET /api/firs/by-petition/:petitionId
+ * @desc    Get FIR record by associated petitionId
+ * @access  Public
+ */
+router.get('/by-petition/:petitionId', async (req, res) => {
+  try {
+    const fir = await FIR.findOne({ petitionId: req.params.petitionId });
+    if (!fir) {
+      return res.status(404).json({ success: false, message: 'FIR not found for this petition' });
+    }
+    return res.status(200).json(fir);
+  } catch (error) {
+    console.error('Fetch FIR by petition error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

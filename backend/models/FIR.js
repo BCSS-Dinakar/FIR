@@ -86,7 +86,16 @@ const FIRSchema = new mongoose.Schema({
   filedAt: { type: String, required: true }
 
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+FIRSchema.virtual('petition', {
+  ref: 'Petition',
+  localField: 'petitionId',
+  foreignField: 'id',
+  justOne: true
 });
 
 module.exports = mongoose.model('FIR', FIRSchema);
