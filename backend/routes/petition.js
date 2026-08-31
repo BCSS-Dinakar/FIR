@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const Petition = require('../models/Petition');
 const { runPetitionPipeline } = require('../services/firPipeline');
+const bnsCatalogService = require('../services/bnsCatalogService');
+const { extractFirFields } = require('../services/firAutofillService');
 
 const router = express.Router();
 
@@ -375,60 +377,51 @@ router.get('/', async (req, res) => {
 
 /**
  * @route   GET /api/petitions/bns-sections
- * @desc    Get the list of all available BNS sections
+ * @desc    Get legal sections from MongoDB (legal_database.laws_sections): BNS, BNSS,
+ *          and BSA. Kept at this URL for backward compatibility with existing callers.
  * @access  Public
  */
 router.get('/bns-sections', async (req, res) => {
   try {
-    const ALL_BNS_SECTIONS = [
-      { code: 'BNS 318 (Cheating)', desc: 'Cheating and dishonestly inducing delivery of property' },
-      { code: 'BNS 120B (Criminal Conspiracy)', desc: 'Punishment of criminal conspiracy' },
-      { code: 'BNS 336 (Forgery)', desc: 'Forgery of valuable security, will, etc.' },
-      { code: 'BNS 84 (Dowry Harassment)', desc: 'Cruelty by husband or relatives of husband' },
-      { code: 'BNS 303 (Theft)', desc: 'Punishment for theft' },
-      { code: 'BNS 331 (House-trespass)', desc: 'Lurking house-trespass or house-breaking' },
-      { code: 'BNS 115 (Hurt)', desc: 'Voluntarily causing hurt' },
-      { code: 'BNS 103 (Murder)', desc: 'Punishment for murder' },
-      { code: 'BNS 351 (Assault)', desc: 'Assault or criminal force' },
-      { code: 'BNS 304 (Extortion)', desc: 'Punishment for extortion' },
-      { code: 'BNS 117 (Grievous Hurt)', desc: 'Voluntarily causing grievous hurt' },
-      { code: 'BNS 124 (Wrongful Restraint)', desc: 'Punishment for wrongful restraint' }
-    ];
-    const { search, recommended, petitionId } = req.query;
+    const { search = '', recommended, petitionId } = req.query;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
+    // Prefer the petition's own RAG-recommended sections; fall back to an explicit
+    // ?recommended=CODE,CODE list for callers that don't have a petitionId yet.
+    // sectionRecommendations (>=50% confidence, per bnsRagService.CONFIDENCE_THRESHOLD)
+    // is the full Suggested Sections set — it's a superset of petition.sections, which
+    // only holds the auto-selected (>=80% confidence) subset. Older petitions saved
+    // before this field existed fall back to petition.sections with no confidence.
+    let recommendedRaw = [];
+    let confidenceByCode = {};
     if (petitionId) {
       const petition = await Petition.findOne({ id: petitionId });
       if (petition) {
-        console.log("Step 2 Output:", petition.step2Output);
+        const recs = Array.isArray(petition.sectionRecommendations) ? petition.sectionRecommendations : [];
+        if (recs.length > 0) {
+          recommendedRaw = recs.map((r) => r.code);
+          confidenceByCode = Object.fromEntries(recs.map((r) => [r.code, r.confidence]));
+        } else {
+          recommendedRaw = petition.sections || [];
+        }
       }
+    } else if (recommended) {
+      recommendedRaw = recommended.split(',').map((s) => s.trim()).filter(Boolean);
     }
 
-    let filtered = ALL_BNS_SECTIONS;
-    if (search) {
-      const s = search.toLowerCase();
-      filtered = filtered.filter(x => x.code.toLowerCase().includes(s) || x.desc.toLowerCase().includes(s));
-    }
+    const resolvedRecommended = await bnsCatalogService.resolveCodes(recommendedRaw);
+    const recommendedSections = resolvedRecommended.map((entry) => ({
+      ...entry,
+      confidence: confidenceByCode[entry.code] ?? null
+    }));
+    const { results: allSections, total } = await bnsCatalogService.searchCatalog(search, { limit, offset });
 
-    let recommendedList = [];
-    if (recommended) {
-      recommendedList = recommended.split(',');
-    }
-
-    const recommendedSections = [];
-    const otherSections = [];
-
-    filtered.forEach(sec => {
-      if (recommendedList.includes(sec.code)) {
-        recommendedSections.push(sec);
-      } else {
-        otherSections.push(sec);
-      }
-    });
-
-    return res.status(200).json({ 
-      success: true, 
-      recommended: recommendedSections, 
-      other: otherSections 
+    return res.status(200).json({
+      success: true,
+      recommended: recommendedSections,
+      all: allSections,
+      total
     });
   } catch (error) {
     console.error('Fetch BNS sections error:', error);
@@ -500,13 +493,55 @@ router.put('/:id', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const deleted = await Petition.findOneAndDelete({ id: req.params.id });
-    if (!deleted) {
+    const petition = await Petition.findOne({ id: req.params.id });
+    if (!petition) {
       return res.status(404).json({ success: false, message: 'Petition not found' });
     }
+    if (petition.status === 'FIR Filed') {
+      return res.status(409).json({ success: false, message: 'This petition has an FIR filed against it and cannot be deleted.' });
+    }
+    await Petition.deleteOne({ id: req.params.id });
     return res.status(200).json({ success: true, message: 'Petition deleted' });
   } catch (error) {
     console.error('Delete petition error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/petitions/:id/autofill-fir
+ * @desc    AI-extracts FIR form fields (dates, complainant/accused details, property,
+ *          incident narrative) grounded strictly in the petition's translated text —
+ *          fields not mentioned in the petition come back null, nothing is invented.
+ *          Cached on the petition after first run; pass ?refresh=true to re-extract.
+ * @access  Public
+ */
+router.get('/:id/autofill-fir', async (req, res) => {
+  try {
+    const petition = await Petition.findOne({ id: req.params.id });
+    if (!petition) {
+      return res.status(404).json({ success: false, message: 'Petition not found' });
+    }
+
+    const cached = petition.metadata?.firAutofill;
+    if (cached && req.query.refresh !== 'true') {
+      return res.status(200).json({ success: true, fields: cached, cached: true });
+    }
+
+    const sourceText = petition.step2Output || petition.step1Output;
+    if (!sourceText) {
+      return res.status(422).json({ success: false, message: 'No petition text available to extract from.' });
+    }
+
+    const fields = await extractFirFields(sourceText);
+
+    petition.metadata = { ...(petition.metadata || {}), firAutofill: fields };
+    petition.markModified('metadata');
+    await petition.save();
+
+    return res.status(200).json({ success: true, fields, cached: false });
+  } catch (error) {
+    console.error('FIR autofill error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -539,6 +574,7 @@ router.post('/pipeline', upload.single('file'), async (req, res) => {
     const complainant = result.metadata?.complainant;
     const accused = result.metadata?.accused;
     const sections = result.metadata?.sections;
+    const sectionRecommendations = result.metadata?.sectionRecommendations || [];
     const blockers = result.step3Output?.missing_fields;
     const valid = result.step3Output?.valid;
 
@@ -556,6 +592,7 @@ router.post('/pipeline', upload.single('file'), async (req, res) => {
       complainant: complainant,
       accused: accused,
       sections: sections,
+      sectionRecommendations: sectionRecommendations,
       score: score,
       status: 'Pending Filing',
       blockers: blockers,

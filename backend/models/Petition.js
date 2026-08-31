@@ -29,6 +29,12 @@ const PetitionSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // Explainability payload for the RAG-recommended sections above (confidence,
+  // matched facts, reasoning) — internal/debugging use, not required by the UI.
+  sectionRecommendations: {
+    type: mongoose.Schema.Types.Mixed,
+    default: []
+  },
   score: {
     type: Number,
     required: true

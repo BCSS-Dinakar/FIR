@@ -100,6 +100,16 @@ export const deletePetition = async (id) => {
 };
 
 /**
+ * AI-extracts FIR form fields from the petition's text (grounded, no invented
+ * values). Cached on the petition after first run — pass { refresh: true } to
+ * force re-extraction.
+ */
+export const autofillFir = async (id, { refresh = false } = {}) => {
+  const response = await API.get(`/api/petitions/${id}/autofill-fir`, { params: refresh ? { refresh: true } : {} });
+  return response.data;
+};
+
+/**
  * Fetches all registered FIR records from the database.
  */
 export const getFirs = async (params) => {
@@ -154,14 +164,18 @@ export const getPetitionById = async (id) => {
 
 
 /**
- * Fetches all available BNS sections from the backend (with optional search and recommended list).
+ * Fetches legal sections from the backend (BNS, BNSS, BSA): RAG-recommended
+ * sections for the petition, plus a searchable/paginated slice of the complete
+ * catalog across all three acts.
  */
-export const getAllBnsSections = async (search = '', recommended = [], petitionId = '') => {
+export const getAllBnsSections = async (search = '', recommended = [], petitionId = '', { limit = 50, offset = 0 } = {}) => {
   const params = new URLSearchParams();
   if (search) params.append('search', search);
   if (recommended && recommended.length > 0) params.append('recommended', recommended.join(','));
   if (petitionId) params.append('petitionId', petitionId);
-  
+  params.append('limit', limit);
+  params.append('offset', offset);
+
   const response = await API.get(`/api/petitions/bns-sections?${params.toString()}`);
   return response.data;
 };

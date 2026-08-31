@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FileFIRForm from '../components/reusable/FileFIRForm';
-import { updatePetition, createFir, getDraftAndFileFIR } from '../api/petition';
+import Pagination from '../components/reusable/Pagination';
+import { updatePetition, createFir, getDraftAndFileFIR, deletePetition } from '../api/petition';
 
 
 
@@ -216,6 +217,23 @@ export default function FileFIR() {
         }
       }, (index + 1) * 600);
     });
+  };
+
+  const handleDeletePetition = async (p) => {
+    if (p.status === 'FIR Filed') return; // already blocked in the UI; guards direct calls too
+    if (!window.confirm(`Delete petition ${p.petitionNo}? This cannot be undone.`)) return;
+    try {
+      await deletePetition(p.id);
+      setPetitions(prev => prev.filter(x => x.id !== p.id));
+      setStats(prev => ({
+        ...prev,
+        totalScanned: Math.max(0, prev.totalScanned - 1),
+        pendingFiling: Math.max(0, prev.pendingFiling - 1)
+      }));
+    } catch (err) {
+      console.error('Failed to delete petition:', err);
+      alert('Failed to delete petition: ' + (err.response?.data?.message || err.message));
+    }
   };
 
   const printFIRMock = () => {
@@ -471,24 +489,36 @@ export default function FileFIR() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {p.status === 'FIR Filed' ? (
+                      <div className="flex items-center justify-end gap-2">
                         <FIRButton
-                          onClick={() => navigate(`/dashboard/fir-document/${p.id}`)}
-                          variant="secondary"
+                          onClick={() => handleDeletePetition(p)}
+                          variant="danger"
                           dark={dark}
-                          className="px-3 py-1.5 text-[11px]"
+                          disabled={p.status === 'FIR Filed'}
+                          title={p.status === 'FIR Filed' ? 'FIR already filed — cannot be deleted' : undefined}
+                          className={`px-3 py-1.5 text-[11px] ${p.status === 'FIR Filed' ? 'opacity-40 pointer-events-none' : ''}`}
                         >
-                          View
+                          Delete
                         </FIRButton>
-                      ) : (
-                        <FIRButton
-                          onClick={() => navigate(`/dashboard/fir-document/${p.id}`)}
-                          variant="solid"
-                          className="px-3 py-1.5 text-[11px]"
-                        >
-                          File FIR
-                        </FIRButton>
-                      )}
+                        {p.status === 'FIR Filed' ? (
+                          <FIRButton
+                            onClick={() => navigate(`/dashboard/fir-document/${p.id}`)}
+                            variant="secondary"
+                            dark={dark}
+                            className="px-3 py-1.5 text-[11px]"
+                          >
+                            View
+                          </FIRButton>
+                        ) : (
+                          <FIRButton
+                            onClick={() => navigate(`/dashboard/fir-document/${p.id}`)}
+                            variant="solid"
+                            className="px-3 py-1.5 text-[11px]"
+                          >
+                            File FIR
+                          </FIRButton>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -513,24 +543,7 @@ export default function FileFIR() {
               <option value={10}>10 per page</option>
             </select>
           </div>
-          <div className="flex items-center gap-1.5">
-            <FIRButton onClick={() => handlePageChange(currentPage - 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === 1 ? 'opacity-50 pointer-events-none' : ''}`}>Prev</FIRButton>
-
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => handlePageChange(i + 1)}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${currentPage === i + 1
-                    ? 'bg-blue-500 text-white'
-                    : dark ? 'hover:bg-white/5' : 'hover:bg-black/5'
-                  }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-
-            <FIRButton onClick={() => handlePageChange(currentPage + 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === totalPages ? 'opacity-50 pointer-events-none' : ''}`}>Next</FIRButton>
-          </div>
+          <Pagination dark={dark} currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
         </div>
       </FIRCard>
 

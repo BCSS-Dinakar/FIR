@@ -4,6 +4,7 @@ import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import SectionSelector from '../components/reusable/SectionSelector';
 import { getPetitionById, updatePetition, createFir, getFirByPetitionId } from '../api/petition';
+import { parseComplainantDetails } from '../utils/petitionTextParser';
 
 
 
@@ -156,7 +157,9 @@ export default function FIRDocument() {
         }
         setAccusedList(mappedAccused);
 
-        // Pre-fill fields from petition data
+        // Pre-fill administrative "today" fields (filing/receipt timestamps — a fact
+        // about when this FIR is being processed, not a fact being extracted from the
+        // petition, so defaulting these to now is legitimate, not invented data).
         const currentYear = new Date().getFullYear().toString();
         const currentDateStr = new Date().toISOString().substring(0, 10);
         const currentTimeStr = new Date().toTimeString().substring(0, 8);
@@ -173,46 +176,58 @@ export default function FIRDocument() {
           }
         }
 
+        // Autofill is local-only: whatever the petition pipeline already extracted
+        // (complainant, accused, sections, translated document text), plus a local
+        // regex pass over the standard petition salutation line ("I, NAME S/o
+        // RELATIVE, Age: X, Occupation: Y, Ph.No. Z, R/o ADDRESS, respectfully
+        // submit...") — no API call. Fields that don't match a recognized pattern
+        // (place of occurrence, properties stolen — these need reading
+        // comprehension, not pattern-matching) stay blank rather than guessed.
+        const fullDocumentText = p.step2Output || p.step1Output || '';
+        const parsed = parseComplainantDetails(fullDocumentText);
+
         setFormData({
           district: firData.district || '',
           policeStation: firData.policeStation || '',
           year: firData.year || currentYear,
           firNo: firData.firNo || p.firNo || '',
-          firDate: firData.firDate || p.incidentDate || currentDateStr,
-          firTime: firData.firTime || p.incidentTime || currentTimeStr,
+          firDate: firData.firDate || currentDateStr,
+          firTime: firData.firTime || currentTimeStr,
           occurrenceDay: firData.occurrenceDay || '',
-          occurrenceDateFrom: firData.occurrenceDateFrom || p.incidentDate || currentDateStr,
-          occurrenceTimeFrom: firData.occurrenceTimeFrom || p.incidentTime || currentTimeStr,
+          occurrenceDateFrom: firData.occurrenceDateFrom || '',
+          occurrenceTimeFrom: firData.occurrenceTimeFrom || '',
           occurrenceDateTo: firData.occurrenceDateTo || '',
           occurrenceTimeTo: firData.occurrenceTimeTo || '',
           priorToTimePeriod: firData.priorToTimePeriod || '',
           receivedDate: firData.receivedDate || (p.date && p.date !== 'Just now' && p.date !== 'Yesterday' ? p.date : currentDateStr),
           receivedTime: firData.receivedTime || currentTimeStr,
           gdEntryNo: firData.gdEntryNo || '',
-          gdDateTime: firData.gdDateTime || `${p.incidentDate || currentDateStr} ${p.incidentTime || currentTimeStr}`,
-          typeOfInformation: firData.typeOfInformation || '',
+          gdDateTime: firData.gdDateTime || '',
+          typeOfInformation: firData.typeOfInformation || 'Written',
           distanceDirection: firData.distanceDirection || '',
           beatNo: firData.beatNo || '',
           occurrenceAddress: firData.occurrenceAddress || p.occurrencePlace || '',
           outsideLimitPSName: firData.outsideLimitPSName || '',
           outsideLimitDistrict: firData.outsideLimitDistrict || '',
           complainantName: firData.complainant || p.complainant || '',
-          complainantRelative: firData.complainantRelative || '',
+          complainantRelative: firData.complainantRelative || parsed.relative || '',
           complainantDob: firData.complainantDob || '',
-          complainantAge: firData.complainantAge || '',
+          complainantAge: firData.complainantAge || parsed.age || '',
           complainantNationality: firData.complainantNationality || '',
           complainantCaste: firData.complainantCaste || '',
           complainantPassport: firData.complainantPassport || '',
           complainantPassportIssueDate: firData.complainantPassportIssueDate || '',
           complainantPassportIssuePlace: firData.complainantPassportIssuePlace || '',
-          complainantOccupation: firData.complainantOccupation || '',
-          complainantMobile: firData.complainantPhone || '',
-          complainantAddress: firData.complainantAddress || '',
+          complainantOccupation: firData.complainantOccupation || parsed.occupation || '',
+          complainantMobile: firData.complainantPhone || parsed.mobile || '',
+          complainantAddress: firData.complainantAddress || parsed.address || '',
           reasonsForDelay: firData.reasonsForDelay || '',
           propertiesStolen: firData.propertiesStolen || '',
           totalValueStolen: firData.totalValueStolen || '',
           inquestReport: firData.inquestReport || '',
-          incidentFacts: firData.incidentFacts || p.step1Output || '',
+          // Full translated petition text (falls back to raw OCR if translation is
+          // unavailable) — not an AI-generated summary, the complete document as scanned.
+          incidentFacts: firData.incidentFacts || fullDocumentText,
           actionTaken: firData.actionTaken || '',
           refusedInvestigationDueTo: firData.refusedInvestigationDueTo || '',
           transferredPS: firData.transferredPS || '',
@@ -508,7 +523,7 @@ export default function FIRDocument() {
       `}} />
 
       {/* Button Action Bar */}
-      <div className="flex justify-between items-center no-print">
+      <div className="flex flex-wrap justify-between items-center gap-2 no-print">
         <div className="flex gap-2">
           <FIRButton onClick={() => navigate(-1)} variant="secondary" dark={dark}>
             ← Back
@@ -529,7 +544,7 @@ export default function FIRDocument() {
       </div>
 
       {/* Document layout container */}
-      <FIRCard dark={dark} noPadding className="p-8 w-full shadow-2xl border print-full-page bg-white text-black border-black/15 relative z-10 pt-16">
+      <FIRCard dark={dark} noPadding className="p-4 sm:p-6 md:p-8 w-full shadow-2xl border print-full-page bg-white text-black border-black/15 relative z-10 pt-16">
 
         {/* Top Right Header (visible only on print) */}
         <div className="print-header">FIRAudit.ai</div>
@@ -549,7 +564,7 @@ export default function FIRDocument() {
 
           {/* Section 1 */}
           <div className="border border-black p-3">
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <div>
                 <span className="font-bold block mb-1">1. District</span>
                 {isFiled ? (
@@ -608,18 +623,18 @@ export default function FIRDocument() {
                 {isFiled ? (
                   <span className="font-semibold">{formData.firDate} {formData.firTime}</span>
                 ) : (
-                  <div className="flex gap-1">
+                  <div className="flex flex-wrap gap-1">
                     <input
                       type="date"
                       value={formData.firDate}
                       onChange={(e) => updateField('firDate', e.target.value)}
-                      className="w-full bg-black/5 px-1 py-1 rounded focus:outline-none"
+                      className="flex-1 min-w-0 bg-black/5 px-1 py-1 rounded focus:outline-none"
                     />
                     <input
                       type="time"
                       value={formData.firTime}
                       onChange={(e) => updateField('firTime', e.target.value)}
-                      className="w-full bg-black/5 px-1 py-1 rounded focus:outline-none"
+                      className="flex-1 min-w-0 bg-black/5 px-1 py-1 rounded focus:outline-none"
                     />
                   </div>
                 )}
@@ -646,7 +661,7 @@ export default function FIRDocument() {
                   onChange={setModalSections}
                   recommendedSections={petition?.sections || []}
                   petitionId={petition?.id || id}
-
+                  blockers={petition?.blockers || []}
                 />
               </div>
             )}
@@ -656,8 +671,8 @@ export default function FIRDocument() {
           <div className="border border-black p-3 space-y-3">
             <span className="font-bold block">3. Occurrence of Offence:</span>
 
-            <div className="grid grid-cols-2 gap-4 pl-3">
-              <div className="grid grid-cols-2 gap-2 border-r border-black/10 pr-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pl-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:border-r border-black/10 lg:pr-4">
                 <div className="col-span-2 font-bold mb-1">a) Occurrence of Offence details:</div>
                 <div>
                   <span className="opacity-70 block">Day</span>
@@ -694,7 +709,7 @@ export default function FIRDocument() {
                       type="date"
                       value={formData.occurrenceDateFrom}
                       onChange={(e) => updateField('occurrenceDateFrom', e.target.value)}
-                      className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                      className="w-full min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                     />
                   )}
                 </div>
@@ -707,7 +722,7 @@ export default function FIRDocument() {
                       type="time"
                       value={formData.occurrenceTimeFrom}
                       onChange={(e) => updateField('occurrenceTimeFrom', e.target.value)}
-                      className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                      className="w-full min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                     />
                   )}
                 </div>
@@ -720,7 +735,7 @@ export default function FIRDocument() {
                       type="date"
                       value={formData.occurrenceDateTo}
                       onChange={(e) => updateField('occurrenceDateTo', e.target.value)}
-                      className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                      className="w-full min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                     />
                   )}
                 </div>
@@ -733,7 +748,7 @@ export default function FIRDocument() {
                       type="time"
                       value={formData.occurrenceTimeTo}
                       onChange={(e) => updateField('occurrenceTimeTo', e.target.value)}
-                      className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                      className="w-full min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                     />
                   )}
                 </div>
@@ -752,7 +767,7 @@ export default function FIRDocument() {
                           type="date"
                           value={formData.receivedDate}
                           onChange={(e) => updateField('receivedDate', e.target.value)}
-                          className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                          className="w-full min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                         />
                       )}
                     </div>
@@ -765,7 +780,7 @@ export default function FIRDocument() {
                           type="time"
                           value={formData.receivedTime}
                           onChange={(e) => updateField('receivedTime', e.target.value)}
-                          className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                          className="w-full min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                         />
                       )}
                     </div>
@@ -838,7 +853,7 @@ export default function FIRDocument() {
                       type="text"
                       value={formData.distanceDirection}
                       onChange={(e) => updateField('distanceDirection', e.target.value)}
-                      className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                      className="flex-1 min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                       placeholder="e.g. 2 km, East"
                     />
                   )}
@@ -849,7 +864,7 @@ export default function FIRDocument() {
                       type="text"
                       value={formData.beatNo}
                       onChange={(e) => updateField('beatNo', e.target.value)}
-                      className="w-24 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
+                      className="w-20 sm:w-24 shrink-0 min-w-0 bg-black/5 px-2 py-0.5 rounded focus:outline-none"
                       placeholder="Beat No"
                     />
                   )}
@@ -872,8 +887,8 @@ export default function FIRDocument() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-black/10 pt-2">
-                <div className="col-span-2 font-bold text-[10px] uppercase opacity-75">c) If outside limits of this PS:</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-black/10 pt-2">
+                <div className="sm:col-span-2 font-bold text-[10px] uppercase opacity-75">c) If outside limits of this PS:</div>
                 <div>
                   <span className="opacity-70 block">Name of P.S.</span>
                   {isFiled ? (
@@ -907,7 +922,7 @@ export default function FIRDocument() {
           {/* Section 6 */}
           <div className="border border-black p-3 space-y-2">
             <span className="font-bold block">6. Complainant / Informant:</span>
-            <div className="grid grid-cols-3 gap-3 pl-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pl-3">
               <div>
                 <span className="opacity-70 block">a) Name</span>
                 {isFiled ? (
@@ -946,14 +961,14 @@ export default function FIRDocument() {
                         value={formData.complainantDob}
                         onChange={(e) => updateField('complainantDob', e.target.value)}
                         placeholder="DOB"
-                        className="w-1/2 bg-black/5 px-1 py-0.5 rounded focus:outline-none"
+                        className="w-1/2 min-w-0 bg-black/5 px-1 py-0.5 rounded focus:outline-none"
                       />
                       <input
                         type="text"
                         value={formData.complainantAge}
                         onChange={(e) => updateField('complainantAge', e.target.value)}
                         placeholder="Age"
-                        className="w-1/2 bg-black/5 px-1 py-0.5 rounded focus:outline-none"
+                        className="w-1/2 min-w-0 bg-black/5 px-1 py-0.5 rounded focus:outline-none"
                       />
                     </>
                   )}
@@ -1077,8 +1092,8 @@ export default function FIRDocument() {
                   </div>
 
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2 border-r border-black/10 pr-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2 sm:border-r border-black/10 sm:pr-3">
                         <div className="flex gap-2">
                           <span className="opacity-75 font-bold text-[10px] w-5">a)</span>
                           <div className="flex-1">
@@ -1113,7 +1128,7 @@ export default function FIRDocument() {
                         </div>
                         <div className="flex gap-2">
                           <span className="opacity-75 font-bold text-[10px] w-5">c)</span>
-                          <div className="grid grid-cols-3 gap-2 flex-1">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 flex-1">
                             <div>
                               <span className="opacity-75 block text-[10px]">Occupation</span>
                               {isFiled ? (
@@ -1197,7 +1212,7 @@ export default function FIRDocument() {
                           <span className="opacity-75 font-bold text-[10px] w-5">g)</span>
                           <div className="flex-1 space-y-2">
                             <span className="opacity-75 block font-bold text-[10px]">Address</span>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                               <div className="col-span-1">
                                 <span className="opacity-75 block text-[9px]">House No</span>
                                 {isFiled ? <span className="font-semibold">{accused.houseNo || '--'}</span> : <input type="text" value={accused.houseNo} onChange={(e) => handleAccusedChange(idx, 'houseNo', e.target.value)} className="w-full bg-black/5 px-1 py-0.5 rounded focus:outline-none" />}
@@ -1228,7 +1243,7 @@ export default function FIRDocument() {
 
                         <div className="flex gap-2">
                           <span className="opacity-75 font-bold text-[10px] w-5">h)</span>
-                          <div className="grid grid-cols-3 gap-2 flex-1">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 flex-1">
                             <div>
                               <span className="opacity-75 block text-[10px]">Phone(Off)</span>
                               {isFiled ? <span className="font-semibold">{accused.phoneOff || '--'}</span> : <input type="text" value={accused.phoneOff} onChange={(e) => handleAccusedChange(idx, 'phoneOff', e.target.value)} className="w-full bg-black/5 px-2 py-0.5 rounded focus:outline-none" />}
@@ -1493,15 +1508,15 @@ export default function FIRDocument() {
           <div className="border border-black p-3 space-y-2">
             <span className="font-bold block">12. Contents of the complaint / statement of the complainant or informant (Brief Facts of Case):</span>
             {isFiled ? (
-              <p className="font-sans leading-relaxed text-xs border border-dashed border-black/20 p-3 bg-gray-50 whitespace-pre-wrap">
+              <p className="font-sans leading-relaxed text-sm border border-dashed border-black/20 p-3 bg-gray-50 whitespace-pre-wrap">
                 {formData.incidentFacts}
               </p>
             ) : (
               <textarea
-                rows="8"
+                rows="16"
                 value={formData.incidentFacts}
                 onChange={(e) => updateField('incidentFacts', e.target.value)}
-                className="w-full bg-black/5 px-3 py-2 rounded focus:outline-none resize-none font-sans text-xs border border-black/10 leading-relaxed"
+                className="w-full bg-black/5 px-3 py-2 rounded focus:outline-none resize-y font-sans text-sm border border-black/10 leading-relaxed"
               />
             )}
           </div>
@@ -1575,7 +1590,7 @@ export default function FIRDocument() {
           {/* Section 14 */}
           <div className="border border-black p-3">
             <span className="font-bold block mb-4">14. Signatures &amp; Details:</span>
-            <div className="grid grid-cols-2 gap-8 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">
               <div className="text-center space-y-8 border-t border-black/10 pt-2">
                 <div className="h-6" />
                 <span className="font-bold block border-t border-black/20 pt-1 text-[9px] uppercase">

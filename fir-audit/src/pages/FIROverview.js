@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import FileFIRForm from '../components/reusable/FileFIRForm';
+import Pagination from '../components/reusable/Pagination';
 import { getFIRStatusBoard, updatePetition, createFir } from '../api/petition';
 import { useGlobals } from '../context/GlobalsContext';
 
@@ -502,24 +503,7 @@ export default function FIROverview() {
               <option value={10}>10 per page</option>
             </select>
           </div>
-          <div className="flex items-center gap-1.5">
-            <FIRButton onClick={() => handlePageChange(currentPage - 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === 1 ? 'opacity-50 pointer-events-none' : ''}`}>Prev</FIRButton>
-
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => handlePageChange(i + 1)}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors ${currentPage === i + 1
-                    ? 'bg-blue-500 text-white'
-                    : dark ? 'hover:bg-white/5' : 'hover:bg-black/5'
-                  }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-
-            <FIRButton onClick={() => handlePageChange(currentPage + 1)} variant="secondary" dark={dark} className={`px-2.5 py-1 text-[11px] h-7 ${currentPage === totalPages ? 'opacity-50 pointer-events-none' : ''}`}>Next</FIRButton>
-          </div>
+          <Pagination dark={dark} currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
         </div>
       </FIRCard>
 
