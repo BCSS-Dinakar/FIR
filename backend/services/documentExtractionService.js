@@ -15,9 +15,10 @@ const {
 /**
  * Unified petition document extraction — images, PDFs, Word, plain text.
  * Detects format from magic bytes + extension + MIME (not MIME alone).
- * PDFs: embedded text layer when trustworthy; otherwise OCR; picks best result.
+ * PDFs: native text layer when trustworthy; image/scanned PDFs → 100% OCR (no embedded).
  *
  * Tune via env (all optional):
+ *   DOCUMENT_PDF_FORCE_OCR=auto|always|never
  *   DOCUMENT_MIN_CHARS, DOCUMENT_MIN_CHARS_PER_PAGE, DOCUMENT_MIN_WORDS,
  *   DOCUMENT_MIN_ALNUM_RATIO, DOCUMENT_SCAN_MIN_FILE_BYTES,
  *   DOCUMENT_SCAN_SUSPICIOUS_BYTES_PER_CHAR, OCR_PROFILE
@@ -33,6 +34,15 @@ const readFloatEnv = (key, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const normalizePdfForceOcrMode = (value) => {
+  const mode = String(value || 'auto').trim().toLowerCase();
+  if (mode === 'always' || mode === 'never') return mode;
+  return 'auto';
+};
+
+/** Producers/creators common when photos or scans are wrapped as PDF. */
+const IMAGE_PDF_METADATA = /jspdf|fpdf|libharu|reportlab|imagemagick|ghostscript|gscan|scan|scanner|camscanner|adobe scan|pdfium|photos|preview|print to pdf|microsoft print|wkhtml|headlesschrome|chrome pdf|smallpdf|ilovepdf|pdf24|png|jpeg|jpg2pdf|image.?to.?pdf/i;
+
 const EXTRACTION_CONFIG = {
   minChars: readIntEnv('DOCUMENT_MIN_CHARS', 150),
   minCharsPerPage: readIntEnv('DOCUMENT_MIN_CHARS_PER_PAGE', 80),
@@ -40,6 +50,8 @@ const EXTRACTION_CONFIG = {
   minAlnumRatio: readFloatEnv('DOCUMENT_MIN_ALNUM_RATIO', 0.25),
   scanMinFileBytes: readIntEnv('DOCUMENT_SCAN_MIN_FILE_BYTES', 50_000),
   scanSuspiciousBytesPerChar: readIntEnv('DOCUMENT_SCAN_SUSPICIOUS_BYTES_PER_CHAR', 400),
+  pdfForceOcr: normalizePdfForceOcrMode(process.env.DOCUMENT_PDF_FORCE_OCR),
+  pdfImageTextOpMax: readIntEnv('DOCUMENT_PDF_IMAGE_TEXT_OP_MAX', 8),
   ocrProfile: (process.env.OCR_PROFILE || 'petition').trim().toLowerCase()
 };
 
@@ -114,13 +126,84 @@ const assessTextQuality = (text, context = {}) => {
   };
 };
 
-const pickBestCandidate = (candidates) => {
-  const ranked = candidates
+const pickBestCandidate = (candidates, { ocrOnly = false } = {}) => {
+  const pool = ocrOnly
+    ? candidates.filter((c) => c.source === 'pdf-ocr')
+    : candidates;
+
+  const ranked = pool
     .map((c) => ({ ...c, quality: assessTextQuality(c.text, c.context) }))
     .filter((c) => !isBlank(c.text))
-    .sort((a, b) => b.quality.score - a.quality.score || b.text.length - a.text.length);
+    .sort((a, b) => {
+      if (ocrOnly) return b.text.length - a.text.length || b.quality.score - a.quality.score;
+      return b.quality.score - a.quality.score || b.text.length - a.text.length;
+    });
 
   return ranked[0] || null;
+};
+
+/**
+ * Inspect PDF bytes for image-page structure (photo/scan → PDF converters).
+ * Returns forceOcrOnly when embedded text cannot be trusted.
+ */
+const inspectPdfBuffer = (buffer) => {
+  const sample = buffer.subarray(0, Math.min(buffer.length, 512 * 1024));
+  const raw = sample.toString('latin1');
+
+  const imageObjects = (raw.match(/\/Subtype\s*\/Image\b/g) || []).length;
+  const jpegStreams = (raw.match(/\/Filter\s*\/DCTDecode\b/g) || []).length;
+  const jp2Streams = (raw.match(/\/Filter\s*\/JPXDecode\b/g) || []).length;
+  const textOps = (raw.match(/\bTj\b/g) || []).length + (raw.match(/\bTJ\b/g) || []).length;
+
+  const producer = ((raw.match(/\/Producer\s*\(([^)]*)\)/) || [])[1] || '').trim();
+  const creator = ((raw.match(/\/Creator\s*\(([^)]*)\)/) || [])[1] || '').trim();
+  const metadata = `${producer} ${creator}`;
+
+  const imageMetadata = IMAGE_PDF_METADATA.test(metadata);
+  const hasRasterContent = imageObjects > 0 || jpegStreams > 0 || jp2Streams > 0;
+  const noTextOperators = textOps === 0 && hasRasterContent;
+  const imageHeavy = hasRasterContent && textOps <= EXTRACTION_CONFIG.pdfImageTextOpMax;
+
+  const reasons = [];
+  if (imageMetadata) reasons.push(`metadata (${producer || creator || 'image PDF tool'})`);
+  if (noTextOperators) reasons.push('no text operators (scan/photo PDF)');
+  if (imageHeavy && !noTextOperators) reasons.push(`image-heavy (${imageObjects} image(s), ${textOps} text op(s))`);
+
+  return {
+    imageObjects,
+    jpegStreams,
+    textOps,
+    producer,
+    creator,
+    forceOcrOnly: imageMetadata || noTextOperators || imageHeavy,
+    reasons
+  };
+};
+
+const resolvePdfExtractionMode = (buffer, fileSizeBytes, embeddedText = '', pageCount = 1) => {
+  const cfg = EXTRACTION_CONFIG;
+  if (cfg.pdfForceOcr === 'always') {
+    return { mode: 'ocr_only', reasons: ['DOCUMENT_PDF_FORCE_OCR=always'] };
+  }
+  if (cfg.pdfForceOcr === 'never') {
+    return { mode: 'embedded_first', reasons: ['DOCUMENT_PDF_FORCE_OCR=never'] };
+  }
+
+  const inspection = inspectPdfBuffer(buffer);
+  if (inspection.forceOcrOnly) {
+    return { mode: 'ocr_only', reasons: inspection.reasons, inspection };
+  }
+
+  const embeddedQuality = assessTextQuality(embeddedText, { pageCount, fileSizeBytes });
+  if (!embeddedQuality.sufficient) {
+    return {
+      mode: 'ocr_fallback',
+      reasons: embeddedQuality.reasons,
+      inspection
+    };
+  }
+
+  return { mode: 'embedded_ok', reasons: [], inspection };
 };
 
 const readUploadBuffer = (filePath) => fs.readFileSync(filePath);
@@ -184,37 +267,51 @@ const extractViaOcrGateway = async (filePath, mimeType, filename) =>
 const extractPdf = async (file, buffer, fileSizeBytes) => {
   const filename = resolveFilename(file, UPLOAD_KIND.PDF, buffer);
   const mimeType = resolveMimeType(file.mimetype, filename, buffer);
-  const candidates = [];
 
   let embedded = { text: '', pageCount: 1 };
   let embeddedError = null;
+
+  const inspection = inspectPdfBuffer(buffer);
+  const preMode = resolvePdfExtractionMode(buffer, fileSizeBytes);
+
+  if (preMode.mode === 'ocr_only') {
+    console.log(
+      `[Document Extract] PDF OCR-only (${preMode.reasons.join('; ') || 'image/scanned PDF'}) — skipping embedded text`
+    );
+    const ocrText = sanitizePetitionText(
+      await extractViaOcrGateway(file.path, mimeType, filename)
+    );
+    if (isBlank(ocrText)) {
+      throw new Error(
+        'OCR returned no readable text from this image-based PDF. Upload the original photo/scan if possible.'
+      );
+    }
+    console.log(`[Document Extract] PDF via pdf-ocr (100%) — ${ocrText.length} chars`);
+    return ocrText;
+  }
+
   try {
     embedded = await extractPdfEmbedded(file.path);
-    if (!isBlank(embedded.text)) {
-      candidates.push({
-        text: embedded.text,
-        source: 'pdf-embedded',
-        context: { pageCount: embedded.pageCount, fileSizeBytes }
-      });
-    }
   } catch (err) {
     embeddedError = err;
   }
 
-  const embeddedQuality = assessTextQuality(embedded.text, {
-    pageCount: embedded.pageCount,
-    fileSizeBytes
-  });
+  const mode = embeddedError
+    ? { mode: 'ocr_fallback', reasons: [`parse failed (${embeddedError.message})`] }
+    : resolvePdfExtractionMode(buffer, fileSizeBytes, embedded.text, embedded.pageCount);
 
-  const needsOcr =
-    Boolean(embeddedError)
-    || !embeddedQuality.sufficient
-    || candidates.length === 0;
+  const candidates = [];
+  if (mode.mode === 'embedded_ok' && !isBlank(embedded.text)) {
+    candidates.push({
+      text: embedded.text,
+      source: 'pdf-embedded',
+      context: { pageCount: embedded.pageCount, fileSizeBytes }
+    });
+  }
 
+  const needsOcr = mode.mode !== 'embedded_ok' || candidates.length === 0;
   if (needsOcr) {
-    const reason = embeddedError
-      ? `parse failed (${embeddedError.message})`
-      : embeddedQuality.reasons.join(', ') || 'low quality embedded text';
+    const reason = mode.reasons.join(', ') || 'low quality embedded text';
     console.log(`[Document Extract] PDF ${reason}; running OCR...`);
 
     try {
@@ -222,7 +319,7 @@ const extractPdf = async (file, buffer, fileSizeBytes) => {
       candidates.push({
         text: sanitizePetitionText(ocrText),
         source: 'pdf-ocr',
-        context: { pageCount: embedded.pageCount, fileSizeBytes }
+        context: { pageCount: embedded.pageCount, fileSizeBytes, inspection }
       });
     } catch (err) {
       if (err instanceof OcrNotConfiguredError) throw err;
@@ -233,14 +330,16 @@ const extractPdf = async (file, buffer, fileSizeBytes) => {
     }
   }
 
-  const best = pickBestCandidate(candidates);
+  const preferOcrOnly = inspection.forceOcrOnly && candidates.some((c) => c.source === 'pdf-ocr');
+  const best = pickBestCandidate(candidates, { ocrOnly: preferOcrOnly });
   if (!best) {
     throw new Error('No text could be extracted from this PDF. Try a clearer scan or a text-based export.');
   }
 
   console.log(
-    `[Document Extract] PDF via ${best.source} — ${best.quality.charCount} chars, ` +
-      `score=${best.quality.score}${best.quality.reasons.length ? ` (${best.quality.reasons.join('; ')})` : ''}`
+    `[Document Extract] PDF via ${best.source}${best.source === 'pdf-ocr' && inspection.forceOcrOnly ? ' (100%)' : ''} — ` +
+      `${best.quality.charCount} chars, score=${best.quality.score}` +
+      `${best.quality.reasons.length ? ` (${best.quality.reasons.join('; ')})` : ''}`
   );
   return best.text;
 };
@@ -323,6 +422,8 @@ module.exports = {
   extractPetitionTextFromUpload,
   assessTextQuality,
   detectUploadKind,
+  inspectPdfBuffer,
+  resolvePdfExtractionMode,
   EXTRACTION_CONFIG,
   UPLOAD_KIND
 };
