@@ -1,6 +1,0 @@
-{
-  "watch": ["*.js", "pipelines/", "services/", "public/"],
-  "ignore": ["sections_data/", "chroma_data/", ".chroma_env/", "uploads/", "node_modules/"],
-  "ext": "js,json",
-  "delay": "500"
-}

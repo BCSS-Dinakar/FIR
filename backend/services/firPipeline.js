@@ -14,6 +14,9 @@ const {
 
 const OCR_PROFILE = process.env.OCR_PROFILE || 'petition';
 const AUTO_SELECT_THRESHOLD = 0.8;
+/** Embedded PDF text below this triggers PaddleOCR (jsPDF/image PDFs often ship header-only text layers). */
+const MIN_PDF_EMBEDDED_CHARS = parseInt(process.env.PDF_MIN_EMBEDDED_CHARS || '150', 10);
+const MIN_PDF_CHARS_PER_PAGE = parseInt(process.env.PDF_MIN_CHARS_PER_PAGE || '80', 10);
 
 const extractTextFromImage = async (filePath, mimeType) => {
   const imageBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
@@ -22,8 +25,30 @@ const extractTextFromImage = async (filePath, mimeType) => {
 
 const extractTextFromPdf = async (filePath) => {
   const buffer = fs.readFileSync(filePath);
-  const { text } = await pdfParse(buffer);
-  return text;
+  const { text, numpages } = await pdfParse(buffer);
+  return {
+    text: text || '',
+    numpages: Math.max(1, numpages || 1)
+  };
+};
+
+const pdfNeedsOcrFallback = (embeddedText, numpages = 1) => {
+  const cleaned = sanitizePetitionText(embeddedText);
+  if (!cleaned) {
+    return { needed: true, reason: 'has no embedded text layer' };
+  }
+  const charCount = cleaned.length;
+  if (charCount < MIN_PDF_EMBEDDED_CHARS) {
+    return { needed: true, reason: `embedded text too short (${charCount} chars)` };
+  }
+  const charsPerPage = charCount / Math.max(1, numpages);
+  if (charsPerPage < MIN_PDF_CHARS_PER_PAGE) {
+    return {
+      needed: true,
+      reason: `embedded text sparse (${Math.round(charsPerPage)} chars/page across ${numpages} page(s))`
+    };
+  }
+  return { needed: false };
 };
 
 const extractTextFromPdfViaOcr = async (filePath, originalname) =>
@@ -113,20 +138,28 @@ const extractRawContentFromFile = async (file) => {
     rawContent = await extractTextFromImage(filePath, mimeType);
   } else if (mimeType === 'application/pdf' || file.originalname.endsWith('.pdf')) {
     let parseError = null;
+    let embeddedText = '';
+    let pageCount = 1;
     try {
-      rawContent = await extractTextFromPdf(filePath);
+      const parsed = await extractTextFromPdf(filePath);
+      embeddedText = parsed.text;
+      pageCount = parsed.numpages;
     } catch (err) {
       parseError = err;
-      rawContent = '';
     }
 
-    if (!sanitizePetitionText(rawContent)) {
-      const reason = parseError ? `could not be parsed (${parseError.message})` : 'has no embedded text layer';
-      console.log(`[Pipeline Step 1] PDF ${reason}; retrying via OCR endpoint...`);
+    const ocrFallback = parseError
+      ? { needed: true, reason: `could not be parsed (${parseError.message})` }
+      : pdfNeedsOcrFallback(embeddedText, pageCount);
+
+    if (ocrFallback.needed) {
+      console.log(`[Pipeline Step 1] PDF ${ocrFallback.reason}; retrying via OCR endpoint...`);
       rawContent = await extractTextFromPdfViaOcr(filePath, file.originalname);
       if (!sanitizePetitionText(rawContent)) {
         throw new Error('No text could be extracted from this PDF, even with OCR. Please check the file and try again.');
       }
+    } else {
+      rawContent = embeddedText;
     }
   } else if (mimeType.startsWith('text/') || mimeType === 'application/octet-stream' || file.originalname.endsWith('.txt')) {
     rawContent = fs.readFileSync(filePath, 'utf-8');

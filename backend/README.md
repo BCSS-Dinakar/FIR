@@ -1,91 +1,79 @@
 # FIRAudit Backend API
 
-This is the Node.js / Express backend API server for the FIRAudit platform. It securely manages Officer authentication, stores petition audit records, and runs the 3-stage petition extraction, translation, and validation pipeline.
+Node.js / Express backend for the FIRAudit platform. Handles officer authentication, petition audit storage, and the step-by-step petition pipeline (OCR → translation → 5W+1H validation → BNS RAG).
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
+
 - **Runtime:** Node.js
 - **Framework:** Express.js
-- **Database:** MongoDB (using Mongoose ODM)
-- **Security:** Bcrypt (password hashing), JSON Web Tokens (JWT via secure HTTP-only cookies)
-- **AI Engine:** Local Ollama integration (`llama3.2` and `llava`)
+- **Database:** PostgreSQL (primary) with optional MongoDB sync/fallback
+- **Security:** Bcrypt, JWT via HTTP-only cookies
+- **Text AI:** vLLM (OpenAI-compatible API, e.g. Qwen)
+- **OCR:** PaddleOCR-VL gateway (images + PDF/DOCX)
+- **RAG:** PostgreSQL FTS/trigram + optional pgvector embeddings
 
 ---
 
-## ⚡ Available Endpoints
+## Petition Pipeline Endpoints (`/api/petitions`)
 
-### 🔐 Authentication (`/api/auth`)
-- `POST /api/auth/register` - Register a new officer account
-- `POST /api/auth/login` - Log in an officer and set cookie-based token
-- `POST /api/auth/logout` - Log out and clear cookies
-- `GET /api/auth/me` - Retrieve the current authenticated officer's details
-
-### 📋 Petition Management (`/api/petitions`)
-- `GET /api/petitions` - Fetch all audited petitions (supports filtering by status, search, and blockers)
-- `GET /api/petitions/draftandfile` - Fetch valid petitions ready for filing
-- `GET /api/petitions/mistakesandwarnings` - Fetch petitions flagged with missing compliance details
-- `GET /api/petitions/counts` - Fetch active warning counts for the dashboard sidebar
-- `GET /api/petitions/analytics` - Fetch compliance scores and officer statistics
-- `POST /api/petitions/pipeline` - Streams progress of the 3-stage upload pipeline (OCR/Extraction, English Translation, legal validation)
-- `GET /api/petitions/:id` - Fetch details of a single petition
-- `PUT /api/petitions/:id` - Update a petition's fields
-- `DELETE /api/petitions/:id` - Delete a petition record
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/pipeline/step/1` | OCR / text extraction (file upload) |
+| `POST` | `/pipeline/step/2` | Translate to English |
+| `POST` | `/pipeline/step/3` | 5W+1H extraction + metadata |
+| `POST` | `/pipeline/finalize` | RAG section recommendations + save |
+| `POST` | `/pipeline` | Legacy auto-run (all steps, streaming) |
+| `GET` | `/` | List petitions (filter by status, blockers, search) |
+| `GET` | `/draftandfile` | Valid petitions ready for filing |
+| `GET` | `/mistakesandwarnings` | Petitions with blockers |
+| `GET` | `/:id` | Single petition details |
+| `PUT` | `/:id` | Update petition |
+| `DELETE` | `/:id` | Delete petition |
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 backend/
 ├── config/             # Database connection setups
-├── helpers/            # Shared utility functions
-├── middleware/         # Auth verification and route blockers
-├── models/             # Mongoose schemas (User, Petition, FIR)
-├── routes/             # Express routing modules (auth, petition, fir)
-├── services/           # AI Pipeline Orchestrators (firPipeline, ollamaService)
-├── server.js           # Server initialization and middleware setups
-└── package.json        # Dependencies and scripts configuration
+├── helpers/            # Shared utilities (llmUtils, promptGuard)
+├── middleware/         # Auth verification
+├── repositories/       # PostgreSQL + Mongo adapters
+├── routes/             # Express routing (auth, petition, fir)
+├── services/           # aiService, ocrService, firPipeline, bnsRagService
+├── server.js           # Server initialization
+└── package.json
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
-### 1. Prerequisites & Environment Variables
-Ensure MongoDB and Ollama are running locally. Create a `.env` file in the backend root directory:
+### 1. Environment
 
-```env
-PORT=3001
-MONGO_URI=mongodb://127.0.0.1:27017/firaudit
-JWT_SECRET=firaudit_super_secret_jwt_key_2026
-NODE_ENV=development
-OLLAMA_URL=http://localhost:11434
+Copy the example and configure vLLM, OCR, and database URLs:
+
+```bash
+cp .env.example .env
 ```
 
-### 2. Available Scripts
-Run the following commands:
+Required variables: `VLLM_BASE_URL`, `VLLM_API_KEY`, `OCR_BASE_URL`, `OCR_API_KEY`, PostgreSQL credentials, `JWT_SECRET`.
 
-- **Install Dependencies**:
-  ```bash
-  npm install
-  ```
+See `.env.example` for the full list (embeddings, pgvector ingest, Mongo sync flags).
 
-- **Run in Development Mode (Recommended)**:
-  ```bash
-  npm run dev
-  ```
-  *(Uses `nodemon` to watch and auto-restart on changes. Runs on `http://localhost:3001`)*
+### 2. Run
 
-- **Run in Production Mode**:
-  ```bash
-  npm start
-  ```
+```bash
+npm install
+npm run dev    # nodemon, default http://localhost:5000
+```
 
 ---
 
-## 📘 Central Documentation
+## Documentation
 
-For comprehensive system workflows and setup guides, refer to:
-- 📖 [doc/doc.md](file:///Users/sadhudinakar/VSCode/fir/doc/doc.md) - Architecture and Pipelines
-- 🔧 [doc/requirements.md](file:///Users/sadhudinakar/VSCode/fir/doc/requirements.md) - Setup Prerequisites and Installation
+- [doc/doc.md](../doc/doc.md) — Architecture and pipelines
+- [doc/requirements.md](../doc/requirements.md) — Setup prerequisites

@@ -1,32 +1,32 @@
 # Resume Copy-Paste Templates
 
-Here are exact resume blocks. You do not need to edit these. Just highlight the text, copy it, and paste it directly into the "Projects" section of your resume.
+Exact resume blocks — copy into the Projects section.
 
 ---
 
 ### Option 1: Standard Format (Most Common)
 
-**FIRAudit - AI Legal Intelligence Platform** | *React.js, Node.js, Python, MongoDB, AI (Ollama, Gemini)*
+**FIRAudit - AI Legal Intelligence Platform** | *React.js, Node.js, Python, PostgreSQL, vLLM, RAG*
 * Developed a web application for law enforcement to automatically read and check legal documents for errors before court submission.
-* Integrated Google Gemini AI and OCR tools to easily extract text from both handwritten and typed police reports.
-* Built a smart search engine (RAG pipeline) using Python to instantly match case facts to specific laws like BNS and IPC.
-* Ran AI models locally using Ollama to ensure highly sensitive legal data stayed completely secure and private.
-* Created a secure backend with Node.js and MongoDB, connected to a modern and user-friendly React.js dashboard.
+* Integrated PaddleOCR-VL and vLLM to extract text from handwritten and typed police reports and translate regional languages to English.
+* Built a hybrid RAG pipeline (PostgreSQL FTS + BM25 + optional pgvector) to match case facts to BNS and IPC sections.
+* Deployed AI on private vLLM/OCR infrastructure so sensitive legal data stays off public model APIs.
+* Created a secure Node.js backend with PostgreSQL and a React.js officer dashboard with step-by-step petition review.
 
 ---
 
 ### Option 2: Short Format (If you are low on space)
 
-**FIRAudit - AI Legal Platform** | *React, Node.js, Python, Local AI*
-* Built an AI-powered tool for law enforcement to automatically scan and verify legal documents (FIRs).
-* Used Google Gemini AI and local Ollama models to extract text and match case facts to specific laws securely.
-* Developed the full stack using a React.js frontend and a secure Node.js/MongoDB backend.
+**FIRAudit - AI Legal Platform** | *React, Node.js, PostgreSQL, vLLM*
+* Built an AI tool for law enforcement to scan and verify legal documents (FIRs) with officer review at each pipeline step.
+* Used PaddleOCR-VL and vLLM for OCR/translation; PostgreSQL RAG for BNS section recommendations.
+* Full stack: React frontend, Express API, PostgreSQL primary storage.
 
 ---
 
 ### Option 3: Impact-Focused Format
 
-**FIRAudit - AI Legal Intelligence Platform** | *React.js, Node.js, Python*
-* Built an AI platform that saves police officers hours of manual paperwork by automatically verifying legal documents.
-* Secured highly sensitive legal data by running AI models locally on the machine instead of public servers.
-* Developed a full-stack solution from a responsive React frontend down to a Python-based AI search engine and MongoDB database.
+**FIRAudit - AI Legal Intelligence Platform** | *React.js, Node.js, PostgreSQL*
+* Built an AI platform that saves police officers hours of manual paperwork by validating petitions and recommending legal sections.
+* Secured sensitive legal data via private vLLM and OCR gateways instead of public cloud LLM APIs.
+* Delivered end-to-end from responsive React UI through multi-step AI pipeline to PostgreSQL-backed legal search.
