@@ -1,8 +1,52 @@
 import API from './api';
 
+const parseJsonResponse = async (response, fallbackMessage = 'Request failed') => {
+  const text = await response.text();
+  let body;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = { message: text || fallbackMessage };
+  }
+  if (!response.ok) {
+    throw new Error(body?.message || fallbackMessage);
+  }
+  return body;
+};
+
+/** Step 1 — OCR / text extraction. Officer must approve before step 2. */
+export const runPipelineStep1 = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const baseURL = API.defaults.baseURL || '';
+  const response = await fetch(`${baseURL}/api/petitions/pipeline/step/1`, {
+    method: 'POST',
+    body: formData
+  });
+  return parseJsonResponse(response, 'Step 1 (scan) failed');
+};
+
+/** Step 2 — translate to English. Officer must approve before step 3. */
+export const runPipelineStep2 = async (step1Output) => {
+  const response = await API.post('/api/petitions/pipeline/step/2', { step1Output });
+  return response.data;
+};
+
+/** Step 3 — 5W+1H validation + metadata. Officer must approve before finalize. */
+export const runPipelineStep3 = async (step2Output) => {
+  const response = await API.post('/api/petitions/pipeline/step/3', { step2Output });
+  return response.data;
+};
+
+/** Step 4 — RAG + save petition after officer approves all prior steps. */
+export const finalizePetitionPipeline = async (payload) => {
+  const response = await API.post('/api/petitions/pipeline/finalize', payload);
+  return response.data;
+};
+
 /**
- * Sends a file to the backend pipeline to parse OCR, translate, validate, and extract metadata.
- * Streams progress updates to the onChunk callback in real time.
+ * Legacy auto pipeline — runs all steps without manual approval.
+ * Prefer step-by-step functions above for the Check New Petition UI.
  */
 export const runPetitionPipeline = async (file, onChunk) => {
   const formData = new FormData();

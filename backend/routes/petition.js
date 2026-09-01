@@ -4,7 +4,7 @@ const fs = require('fs');
 const petitionsRepo = require('../repositories/petitionsRepo');
 const firsRepo = require('../repositories/firsRepo');
 const usersRepo = require('../repositories/usersRepo');
-const { runPetitionPipeline } = require('../services/firPipeline');
+const { runPetitionPipeline, runPipelineStep1, runPipelineStep2, runPipelineStep3, runPipelineStep4 } = require('../services/firPipeline');
 const bnsCatalogService = require('../services/bnsCatalogService');
 const { extractFirFields } = require('../services/firAutofillService');
 
@@ -382,6 +382,120 @@ router.delete('/:id', async (req, res) => {
     return res.status(200).json({ success: true, message: 'Petition deleted' });
   } catch (error) {
     console.error('Delete petition error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/pipeline/step/1', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file was uploaded.' });
+  }
+
+  try {
+    const result = await runPipelineStep1(req.file);
+    return res.json({ success: true, step: 1, ...result });
+  } catch (error) {
+    console.error('Pipeline step 1 error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  } finally {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+    }
+  }
+});
+
+router.post('/pipeline/step/2', async (req, res) => {
+  try {
+    const step1Output = req.body?.step1Output;
+    if (!step1Output || typeof step1Output !== 'string') {
+      return res.status(400).json({ success: false, message: 'step1Output text is required.' });
+    }
+    const result = await runPipelineStep2(step1Output);
+    return res.json({ success: true, step: 2, ...result });
+  } catch (error) {
+    console.error('Pipeline step 2 error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/pipeline/step/3', async (req, res) => {
+  try {
+    const step2Output = req.body?.step2Output;
+    if (!step2Output || typeof step2Output !== 'string') {
+      return res.status(400).json({ success: false, message: 'step2Output text is required.' });
+    }
+    const result = await runPipelineStep3(step2Output);
+    return res.json({ success: true, step: 3, ...result });
+  } catch (error) {
+    console.error('Pipeline step 3 error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/pipeline/finalize', async (req, res) => {
+  try {
+    const {
+      step1Output,
+      step2Output,
+      step3Output,
+      metadata: clientMetadata,
+      sourceFile
+    } = req.body || {};
+
+    console.log(
+      `[Pipeline Finalize] POST /pipeline/finalize — source=${sourceFile || 'upload'}, ` +
+        `valid=${step3Output?.valid}, complainant=${clientMetadata?.complainant || '?'}`
+    );
+
+    if (!step2Output || !step3Output) {
+      return res.status(400).json({ success: false, message: 'step2Output and step3Output are required.' });
+    }
+
+    const { metadata } = await runPipelineStep4(
+      step2Output,
+      step3Output,
+      clientMetadata || {}
+    );
+
+    const blockers = step3Output?.missing_fields;
+    const valid = step3Output?.valid;
+    const score = valid ? 95 : Math.max(40, 90 - (blockers ? blockers.length : 0) * 15);
+    const newId = `PET-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const petNo = `PET/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
+    const dateFormatted = new Date().toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    console.log(`[Pipeline Finalize] Saving petition ${petNo} (id=${newId}, score=${score})...`);
+
+    const newPetition = await petitionsRepo.create({
+      id: newId,
+      petitionNo: petNo,
+      date: dateFormatted,
+      complainant: metadata.complainant,
+      accused: metadata.accused,
+      sections: metadata.sections,
+      sectionRecommendations: metadata.sectionRecommendations,
+      score,
+      status: 'Pending Filing',
+      blockers,
+      sourceFile: sourceFile || 'upload',
+      step1Output: step1Output || '',
+      step2Output,
+      step3Output,
+      metadata
+    });
+
+    console.log(
+      `[Pipeline Finalize] Saved ${petNo}. sections=${(metadata.sections || []).length}, ` +
+        `blockers=${(blockers || []).length}.`
+    );
+
+    return res.json({ success: true, step: 4, result: formatPetition(newPetition) });
+  } catch (error) {
+    console.error('Pipeline finalize error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 });

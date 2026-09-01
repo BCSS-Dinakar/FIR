@@ -437,6 +437,7 @@ module.exports = {
   getModelFamily,
   isImageFormat,
   isDocumentFormat,
+  ensureExtension,
   OcrNotConfiguredError,
   VALID_PROFILES
 };
