@@ -303,7 +303,12 @@ async function runHttpWorkflow() {
   const txtPath = path.join(tmpDir, 'petition.txt');
   fs.writeFileSync(
     txtPath,
-    'Complainant Ramesh Kumar states that on 15 March 2026 at 9 PM near MG Road Hyderabad, accused Suresh snatched his mobile phone.'
+    [
+      'Complainant Ramesh Kumar states that on 15 March 2026 at 9 PM near MG Road, Hyderabad,',
+      'accused Suresh snatched his mobile phone worth Rs 15000 and fled on a motorcycle.',
+      'Ramesh believes Suresh acted out of prior enmity over a money dispute.',
+      'Suresh approached Ramesh on foot, grabbed the phone from his hand, and escaped north on the bike.'
+    ].join(' ')
   );
 
   const runPipelineFile = async (filePath, mimeType, originalname, label) => {
@@ -324,14 +329,22 @@ async function runHttpWorkflow() {
 
     if (txtResult.step2Output) ok('Translation', 'vLLM', 'step2 produced');
     else fail('Translation', 'vLLM', 'missing step2');
-    if (txtResult.step3Output?.valid !== undefined) ok('6W validation', 'vLLM', `valid=${txtResult.step3Output.valid}`);
-    else fail('6W validation', 'vLLM', 'missing step3');
+    if (txtResult.step3Output?.valid !== undefined) ok('5W+1H validation', 'vLLM', `valid=${txtResult.step3Output.valid}`);
+    else fail('5W+1H validation', 'vLLM', 'missing step3');
+    const fields = txtResult.step3Output?.fields || {};
+    if (fields.what && fields.where && fields.when && fields.how) {
+      ok('5W+1H fields extract', 'vLLM', `who=${fields.complainantName || fields.who || '?'}`);
+    } else {
+      fail('5W+1H fields extract', 'vLLM', `incomplete: ${Object.keys(fields).join(',')}`);
+    }
+    if (txtResult.metadata?.fiveW1H?.what) ok('5W+1H metadata', 'firPipeline', 'stored in metadata');
+    else fail('5W+1H metadata', 'firPipeline', 'missing metadata.fiveW1H');
     if (txtResult.metadata?.complainant) ok('Metadata extraction', 'vLLM', txtResult.metadata.complainant);
     else fail('Metadata extraction', 'vLLM', 'missing metadata');
   } catch (e) {
     fail('.txt petition pipeline', 'firPipeline', e.message);
     fail('Translation', 'vLLM', 'blocked by pipeline failure');
-    fail('6W validation', 'vLLM', 'blocked by pipeline failure');
+    fail('5W+1H validation', 'vLLM', 'blocked by pipeline failure');
     fail('Metadata extraction', 'vLLM', 'blocked by pipeline failure');
   }
 
@@ -438,13 +451,36 @@ startxref
 %%EOF`;
   fs.writeFileSync(blankPdf, blankPdfBytes);
   try {
-    const { extractTextFromDocument } = require('../services/ocrService');
+    const { extractTextFromDocument, extractTextFromFilePath } = require('../services/ocrService');
     const b64 = fs.readFileSync(imgPath).toString('base64');
-    const ocrText = await extractTextFromDocument(b64, 'image/png', { profile: 'petition' });
-    if (ocrText.match(/Ramesh|Hyderabad/i)) ok('OCR endpoint (image)', process.env.OCR_MODEL, 'direct ocrService call');
+    const ocrText = await extractTextFromDocument(b64, 'image/png', { profile: 'petition', filename: 'petition-scan.png' });
+    if (ocrText.match(/Ramesh|Hyderabad/i)) ok('OCR endpoint (image)', process.env.OCR_MODEL, 'chat completions');
     else fail('OCR endpoint (image)', process.env.OCR_MODEL, ocrText.slice(0, 80));
   } catch (e) {
     fail('OCR endpoint (image)', process.env.OCR_MODEL, e.message);
+  }
+
+  try {
+    const { extractTextFromFilePath } = require('../services/ocrService');
+    const docText = await extractTextFromFilePath(imgPath, 'image/png', {
+      profile: 'petition',
+      filename: 'petition-scan.png'
+    });
+    if (docText.match(/Ramesh|Hyderabad/i)) ok('OCR endpoint (file upload)', process.env.OCR_MODEL, 'extractTextFromFilePath');
+    else fail('OCR endpoint (file upload)', process.env.OCR_MODEL, docText.slice(0, 80));
+  } catch (e) {
+    fail('OCR endpoint (file upload)', process.env.OCR_MODEL, e.message);
+  }
+
+  try {
+    const { extractTextFromDocument } = require('../services/ocrService');
+    const pdfBytes = fs.readFileSync(blankPdf);
+    const pdfB64 = pdfBytes.toString('base64');
+    const pdfOcr = await extractTextFromDocument(pdfB64, 'application/pdf', { filename: 'blank-scan.pdf' });
+    if (pdfOcr && pdfOcr.length > 0) ok('OCR endpoint (PDF document)', process.env.OCR_MODEL, pdfOcr.slice(0, 60));
+    else fail('OCR endpoint (PDF document)', process.env.OCR_MODEL, 'empty');
+  } catch (e) {
+    fail('OCR endpoint (PDF document)', process.env.OCR_MODEL, e.message);
   }
 
   // RAG

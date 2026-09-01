@@ -105,13 +105,14 @@ const buildRequestBody = (model, messages, maxTokens, options = {}) => {
  * Sends a text prompt and returns cleaned completion text.
  * @param {string} prompt
  * @param {number} [maxTokens]
- * @param {{ mode?: 'default'|'plain'|'json', jsonMode?: boolean, temperature?: number }} [options]
+ * @param {{ mode?: 'default'|'plain'|'json', jsonMode?: boolean, temperature?: number, systemPrompt?: string }} [options]
  * @returns {Promise<string>}
  */
 const generateText = async (prompt, maxTokens = MAX_OUTPUT_TOKENS, options = {}) => {
   const mode = options.mode || (options.jsonMode ? 'json' : 'default');
+  const systemContent = options.systemPrompt || SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.default;
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.default },
+    { role: 'system', content: systemContent },
     { role: 'user', content: buildUserContent(prompt, options) }
   ];
 
@@ -135,6 +136,13 @@ const generateText = async (prompt, maxTokens = MAX_OUTPUT_TOKENS, options = {})
   }
 };
 
+/**
+ * System + user messages with optional custom system prompt (5W+1H extraction).
+ */
+const generateChat = async ({ system, user, maxTokens = MAX_OUTPUT_TOKENS, options = {} }) =>
+  generateText(user, maxTokens, { ...options, systemPrompt: system });
+
 module.exports = {
-  generateText
+  generateText,
+  generateChat
 };

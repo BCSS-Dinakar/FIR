@@ -42,14 +42,16 @@ Check against the following criteria:
 5. Why: Why did it happen (known motive, dispute, revenge, financial gain, harassment, etc.)?
 6. How: How was the offence committed? What method, weapon, tool, vehicle, account, or process was used?
 
-A petition is VALID if it reasonably covers the 'Who', 'What', 'When', and 'Where'. If critical information from these 4 categories is missing, it is INVALID. 'Why' and 'How' are helpful but their absence alone does not make it invalid.
+A petition is VALID only if it reasonably covers all six: 'Who', 'What', 'When', 'Where', 'Why', and 'How'. If any of these is critically missing, it is INVALID.
 
 Return ONLY a JSON object exactly in this format, with no markdown, no backticks, and no other text:
 {
   "valid": true,
-  "missing_fields": ["Who", "When", "What", "Where"], // An array of the core missing fields. Empty if valid.
+  "missing_fields": ["Who", "What", "When", "Where", "Why", "How"],
   "reason": "If invalid, concisely state exactly what is missing and must be provided. If valid, state why."
 }
+
+missing_fields must contain only zero or more of: "Who", "What", "When", "Where", "Why", "How".
 
 PETITION TEXT:
 ${content}`;

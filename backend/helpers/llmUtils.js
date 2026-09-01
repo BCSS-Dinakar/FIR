@@ -1,4 +1,4 @@
-const CORE_MISSING_FIELDS = ['Who', 'What', 'When', 'Where'];
+const CORE_MISSING_FIELDS = ['Who', 'What', 'When', 'Where', 'Why', 'How'];
 
 /**
  * Remove model reasoning / thinking blocks (e.g. Qwen3) before parsing output.
@@ -93,7 +93,7 @@ const normalizeMissingFields = (fields) => {
 };
 
 /**
- * Coerce and validate the 6W validation payload from the model.
+ * Coerce and validate the 5W+1H validation payload from the model.
  */
 const normalizeValidationResult = (parsed, { emptyInput = false } = {}) => {
   if (emptyInput) {
@@ -114,7 +114,7 @@ const normalizeValidationResult = (parsed, { emptyInput = false } = {}) => {
 
   const reason = String(parsed?.reason || '').trim()
     || (valid
-      ? 'Petition reasonably covers Who, What, When, and Where.'
+      ? 'Petition covers Who, What, When, Where, Why, and How.'
       : `Missing required details: ${missing_fields.join(', ')}.`);
 
   return { valid, missing_fields, reason };

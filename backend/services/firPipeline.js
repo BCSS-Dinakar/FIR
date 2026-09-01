@@ -1,13 +1,14 @@
 const fs = require('fs');
+const path = require('path');
 const pdfParse = require('pdf-parse');
 const { generateText } = require('./aiService');
-const { extractTextFromDocument } = require('./ocrService');
+const { extractTextFromDocument, extractTextFromFilePath } = require('./ocrService');
 const bnsRagService = require('./bnsRagService');
+const { extractAndValidate5W1H, partiesFromFields } = require('./fiveWOneHService');
 const {
   sanitizePetitionText,
   isBlank,
   parseJsonFromLlm,
-  normalizeValidationResult,
   normalizeMetadataResult
 } = require('../helpers/llmUtils');
 
@@ -24,10 +25,17 @@ const extractTextFromPdf = async (filePath) => {
   return text;
 };
 
-const extractTextFromPdfViaOcr = async (filePath) => {
-  const pdfBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
-  return await extractTextFromDocument(pdfBase64, 'application/pdf', { profile: OCR_PROFILE });
-};
+const extractTextFromPdfViaOcr = async (filePath) =>
+  extractTextFromFilePath(filePath, 'application/pdf', {
+    profile: OCR_PROFILE,
+    filename: path.basename(filePath)
+  });
+
+const extractTextFromWord = async (filePath, mimeType, originalname) =>
+  extractTextFromFilePath(filePath, mimeType, {
+    profile: OCR_PROFILE,
+    filename: originalname || path.basename(filePath)
+  });
 
 const translateToEnglish = async (content) => {
   const petition = sanitizePetitionText(content);
@@ -57,53 +65,11 @@ ${petition}`;
   return cleaned;
 };
 
-const validateFir = async (content) => {
-  const petition = sanitizePetitionText(content);
-  if (isBlank(petition)) {
-    return normalizeValidationResult(null, { emptyInput: true });
+const extractMetadata = async (content, partiesFrom5W1H = null) => {
+  if (partiesFrom5W1H) {
+    return normalizeMetadataResult(partiesFrom5W1H);
   }
 
-  const prompt = `TASK: Validate whether this petition has enough factual detail to proceed toward FIR filing.
-
-CHECKLIST (5W + 1H):
-1. Who — complainant/victim/accused/witnesses (anonymous descriptions count if specific enough)
-2. What — offence conduct, loss, injury, or damage
-3. When — date/time or discoverable timeframe (relative phrases like "yesterday" count IF anchored to a calendar context in the text)
-4. Where — place, address, landmark, online platform, or jurisdiction
-5. Why — motive (optional; absence alone does NOT invalidate)
-6. How — method/weapon/tool (optional; absence alone does NOT invalidate)
-
-VALIDITY RULE:
-- VALID only if Who, What, When, and Where are each reasonably present in the text.
-- INVALID if any of those four is critically missing or too vague to act on (e.g. "somewhere", "recently", "someone" with no role).
-
-EDGE CASES:
-- Anonymous complainant is acceptable if other facts are clear.
-- Online/cyber incidents: platform/URL/app name can satisfy Where.
-- Ongoing or continuing offences: approximate start time is acceptable.
-- Multiple incidents: validate on the primary incident described.
-- Do NOT invalidate solely because Why or How is missing.
-
-Return ONLY this JSON object (no markdown, no extra keys):
-{
-  "valid": true,
-  "missing_fields": [],
-  "reason": "short explanation"
-}
-
-missing_fields must contain only zero or more of: "Who", "What", "When", "Where".
-
-PETITION TEXT:
-${petition}`;
-
-  const response = await generateText(prompt, 512, { mode: 'json', jsonMode: true });
-  const parsed = parseJsonFromLlm(response, {
-    fallback: { valid: false, missing_fields: ['Who', 'What', 'When', 'Where'], reason: 'Could not parse validation response.' }
-  });
-  return normalizeValidationResult(parsed);
-};
-
-const extractMetadata = async (content) => {
   const petition = sanitizePetitionText(content);
   if (isBlank(petition)) {
     return { complainant: 'Unknown', accused: 'Unknown' };
@@ -167,8 +133,19 @@ const runPetitionPipeline = async (file, onStep) => {
     }
   } else if (mimeType.startsWith('text/') || mimeType === 'application/octet-stream' || file.originalname.endsWith('.txt')) {
     rawContent = fs.readFileSync(filePath, 'utf-8');
+  } else if (
+    mimeType.includes('wordprocessingml')
+    || mimeType === 'application/msword'
+    || file.originalname.endsWith('.docx')
+    || file.originalname.endsWith('.doc')
+  ) {
+    console.log(`[Pipeline Step 1] Extracting text from Word document via OCR gateway...`);
+    if (onStep) onStep({ step: 1, status: 'running', message: 'Extracting text from Word document' });
+    rawContent = await extractTextFromWord(filePath, mimeType, file.originalname);
   } else {
-    throw new Error('Unsupported file type. Please upload a plain text file, an image, or a PDF.');
+    throw new Error(
+      'Unsupported file type. Please upload a plain text file, an image, a PDF, or a Word document (.docx/.doc).'
+    );
   }
 
   rawContent = sanitizePetitionText(rawContent);
@@ -187,17 +164,26 @@ const runPetitionPipeline = async (file, onStep) => {
   if (onStep) onStep({ step: 2, status: 'completed', output: translated });
   console.log(`[Pipeline Step 2] Completed translation.`);
 
-  console.log(`[Pipeline Step 3] Validating petition (BNS check)...`);
-  if (onStep) onStep({ step: 3, status: 'running', message: 'Validating petition' });
+  console.log(`[Pipeline Step 3] Extracting & validating 5W+1H...`);
+  if (onStep) onStep({ step: 3, status: 'running', message: 'Extracting and validating 5W+1H' });
 
-  const validationResult = await validateFir(translated);
+  const validationResult = await extractAndValidate5W1H(translated);
 
   if (onStep) onStep({ step: 3, status: 'completed', output: validationResult });
-  console.log(`[Pipeline Step 3] Completed validation.`);
+  console.log(
+    `[Pipeline Step 3] Completed 5W+1H validation. valid=${validationResult.valid}` +
+      (validationResult.reExtracted ? ' (re-extracted)' : '')
+  );
 
-  console.log(`[Pipeline Step 3] Extracting petition metadata...`);
-  const metadata = await extractMetadata(translated);
-  console.log(`[Pipeline Step 3] Completed metadata extraction.`);
+  console.log(`[Pipeline Step 3] Building petition metadata...`);
+  const parties = partiesFromFields(validationResult.fields);
+  let metadata = await extractMetadata(translated, parties);
+  metadata.fiveW1H = validationResult.fields || {};
+  if (validationResult.fields?.when) metadata.incidentDate = validationResult.fields.when;
+  if (validationResult.fields?.incidentTime) metadata.incidentTime = validationResult.fields.incidentTime;
+  if (validationResult.fields?.where) metadata.occurrencePlace = validationResult.fields.where;
+  if (validationResult.fields?.what) metadata.incidentFacts = validationResult.fields.what;
+  console.log(`[Pipeline Step 3] Completed metadata.`);
 
   let sectionRecommendations = [];
   if (validationResult.valid) {

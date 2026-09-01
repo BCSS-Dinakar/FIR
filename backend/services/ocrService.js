@@ -1,13 +1,19 @@
+const fs = require('fs');
+const path = require('path');
 const OpenAI = require('openai');
 const { stripModelReasoning } = require('../helpers/llmUtils');
 
 /**
- * OCR service — vision models via OpenAI-compatible chat completions.
- * Separate from vLLM Qwen text generation.
+ * OCR service — PaddleOCR-VL via the OCR gateway.
  *
- * Plain-text files and PDFs with an embedded text layer do not use this service.
+ * Routing:
+ *   Images (PNG, JPEG, WEBP, TIFF, BMP) → /v1/chat/completions (image_url + OCR: prompt)
+ *   Documents (PDF, DOCX, DOC)        → /v1/ocr/extract or /v1/ocr/extract/json
+ *     (gateway renders pages / extracts text; Paddle accepts images only on raw vLLM)
  *
- * Profiles are tuned for the petition → translate → validate → RAG pipeline:
+ * Plain-text files and PDFs with an embedded text layer skip this service (see firPipeline).
+ *
+ * Profiles tune chat-completions prompts for images only:
  *   petition (default) — narrative complaints, handwritten/typed scans
  *   form             — structured FIR/police forms with labeled fields
  *   table            — tabular annexures, charge sheets, property lists
@@ -27,6 +33,21 @@ const PADDLEOCR_MAX_TOKENS_CAP = 2048;
 const VLM_DEFAULT_MAX_TOKENS = 4096;
 
 const VALID_PROFILES = new Set(['petition', 'form', 'table']);
+
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.bmp']);
+const DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.doc']);
+
+const MIME_TO_EXT = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/msword': '.doc',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/webp': '.webp',
+  'image/tiff': '.tif',
+  'image/bmp': '.bmp'
+};
 
 /** PaddleOCR-VL task prefixes (short, model-trained). */
 const PADDLEOCR_PROMPTS = {
@@ -73,7 +94,7 @@ class OcrNotConfiguredError extends Error {
   constructor() {
     super(
       'OCR service is not configured. Set OCR_BASE_URL and OCR_API_KEY in backend/.env ' +
-      'to enable image and scanned-PDF text extraction.'
+      'to enable image and scanned-document text extraction.'
     );
     this.name = 'OcrNotConfiguredError';
   }
@@ -94,6 +115,8 @@ const getClient = () => {
   }
   return client;
 };
+
+const ocrRootUrl = () => OCR_BASE_URL.replace(/\/$/, '');
 
 const isRetryable = (error) => {
   const status = error?.status || error?.response?.status;
@@ -139,6 +162,21 @@ const normalizeProfile = (profile) => {
   return VALID_PROFILES.has(key) ? key : 'petition';
 };
 
+const extensionFromName = (filename = '') => path.extname(String(filename)).toLowerCase();
+
+const isImageFormat = (mimeType, filename = '') => {
+  const mime = String(mimeType || '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  return IMAGE_EXTENSIONS.has(extensionFromName(filename));
+};
+
+const isDocumentFormat = (mimeType, filename = '') => {
+  const mime = String(mimeType || '').toLowerCase();
+  if (mime === 'application/pdf') return true;
+  if (mime.includes('wordprocessingml') || mime === 'application/msword') return true;
+  return DOCUMENT_EXTENSIONS.has(extensionFromName(filename));
+};
+
 /**
  * Resolve the vision prompt for a document profile and model family.
  * Priority: OCR_PROMPT env → OCR_PROMPT_<PROFILE> env → built-in profile defaults.
@@ -157,6 +195,13 @@ const resolveOcrPrompt = ({ profile, model } = {}) => {
   return VLM_PROMPTS[key] || VLM_PROMPTS.petition;
 };
 
+const resolveFilename = (mimeType, filename) => {
+  const name = String(filename || '').trim();
+  if (name) return path.basename(name);
+  const ext = MIME_TO_EXT[String(mimeType || '').toLowerCase()] || '.bin';
+  return `document${ext}`;
+};
+
 const normalizeOcrOutput = (text) => {
   let cleaned = stripModelReasoning(String(text || ''));
   cleaned = cleaned
@@ -166,14 +211,91 @@ const normalizeOcrOutput = (text) => {
   return cleaned;
 };
 
+const parseDocumentOcrResponse = (payload) => {
+  const text = normalizeOcrOutput(
+    payload?.text
+    || (Array.isArray(payload?.pages)
+      ? payload.pages.map((p) => p?.text || '').filter(Boolean).join('\n\n')
+      : '')
+  );
+  if (!text) {
+    throw new Error('Document OCR returned empty text.');
+  }
+  return text;
+};
+
+const authHeaders = () => ({
+  Authorization: `Bearer ${OCR_API_KEY}`
+});
+
 /**
- * Extract text from a document (image or PDF) via the configured vision model.
- * @param {string} base64Data - Base64 file contents (no data: prefix).
- * @param {string} mimeType - e.g. 'application/pdf', 'image/jpeg'.
- * @param {{ profile?: 'petition'|'form'|'table' }} [options]
- * @returns {Promise<string>} Extracted text.
+ * PDF / DOCX / DOC via gateway document OCR (JSON base64).
  */
-const extractTextFromDocument = async (base64Data, mimeType, options = {}) => {
+const extractViaDocumentOcrJson = async (base64Data, filename, maxTokens) => {
+  const response = await fetch(`${ocrRootUrl()}/ocr/extract/json`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      data_base64: base64Data,
+      filename: resolveFilename(null, filename),
+      max_tokens: maxTokens
+    })
+  });
+
+  const raw = await response.text();
+  let payload;
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(`Document OCR returned non-JSON (${response.status}): ${raw.slice(0, 300)}`);
+  }
+
+  if (!response.ok) {
+    const detail = payload?.detail || payload?.error?.message || raw;
+    throw new Error(`Document OCR failed (${response.status}): ${String(detail).slice(0, 300)}`);
+  }
+
+  return parseDocumentOcrResponse(payload);
+};
+
+/**
+ * PDF / DOCX / DOC via gateway document OCR (multipart upload).
+ */
+const extractViaDocumentOcrUpload = async (filePath, filename, maxTokens) => {
+  const buffer = fs.readFileSync(filePath);
+  const form = new FormData();
+  form.append('file', new Blob([buffer]), resolveFilename(null, filename));
+  form.append('max_tokens', String(maxTokens));
+
+  const response = await fetch(`${ocrRootUrl()}/ocr/extract`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form
+  });
+
+  const raw = await response.text();
+  let payload;
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(`Document OCR returned non-JSON (${response.status}): ${raw.slice(0, 300)}`);
+  }
+
+  if (!response.ok) {
+    const detail = payload?.detail || payload?.error?.message || raw;
+    throw new Error(`Document OCR failed (${response.status}): ${String(detail).slice(0, 300)}`);
+  }
+
+  return parseDocumentOcrResponse(payload);
+};
+
+/**
+ * Single-page images via chat completions (PaddleOCR-VL image_url + prompt).
+ */
+const extractViaChatCompletion = async (base64Data, mimeType, options = {}) => {
   const profile = normalizeProfile(options.profile);
   const prompt = resolveOcrPrompt({ profile, model: OCR_MODEL });
   const maxTokens = resolveMaxTokens(OCR_MODEL);
@@ -204,11 +326,63 @@ const extractTextFromDocument = async (base64Data, mimeType, options = {}) => {
   return text;
 };
 
+/**
+ * Extract text from a file on disk. Prefers multipart upload for documents.
+ * @param {string} filePath
+ * @param {string} mimeType
+ * @param {{ profile?: string, filename?: string }} [options]
+ */
+const extractTextFromFilePath = async (filePath, mimeType, options = {}) => {
+  if (!OCR_BASE_URL || !OCR_API_KEY) throw new OcrNotConfiguredError();
+
+  const filename = options.filename || path.basename(filePath);
+  const maxTokens = resolveMaxTokens(OCR_MODEL);
+
+  if (isDocumentFormat(mimeType, filename)) {
+    return withRetries(() => extractViaDocumentOcrUpload(filePath, filename, maxTokens));
+  }
+
+  const base64Data = fs.readFileSync(filePath, { encoding: 'base64' });
+  return extractTextFromDocument(base64Data, mimeType, { ...options, filename });
+};
+
+/**
+ * Extract text from a document (image, PDF, or Word) via the OCR gateway.
+ * @param {string} base64Data - Base64 file contents (no data: prefix).
+ * @param {string} mimeType - e.g. 'application/pdf', 'image/jpeg'.
+ * @param {{ profile?: 'petition'|'form'|'table', filename?: string }} [options]
+ * @returns {Promise<string>} Extracted text.
+ */
+const extractTextFromDocument = async (base64Data, mimeType, options = {}) => {
+  if (!OCR_BASE_URL || !OCR_API_KEY) throw new OcrNotConfiguredError();
+
+  const filename = options.filename;
+  const maxTokens = resolveMaxTokens(OCR_MODEL);
+
+  if (isDocumentFormat(mimeType, filename)) {
+    return withRetries(() =>
+      extractViaDocumentOcrJson(base64Data, resolveFilename(mimeType, filename), maxTokens)
+    );
+  }
+
+  if (!isImageFormat(mimeType, filename)) {
+    throw new Error(
+      `Unsupported OCR format (${mimeType || 'unknown'}). ` +
+      'Supported: PNG, JPEG, WEBP, TIFF, BMP, PDF, DOCX, DOC.'
+    );
+  }
+
+  return extractViaChatCompletion(base64Data, mimeType, options);
+};
+
 module.exports = {
   extractTextFromDocument,
+  extractTextFromFilePath,
   resolveOcrPrompt,
   resolveMaxTokens,
   getModelFamily,
+  isImageFormat,
+  isDocumentFormat,
   OcrNotConfiguredError,
   VALID_PROFILES
 };
