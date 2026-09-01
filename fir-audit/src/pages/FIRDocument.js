@@ -3,10 +3,44 @@ import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import FIRButton from '../components/reusable/FIRButton';
 import FIRCard from '../components/reusable/FIRCard';
 import SectionSelector from '../components/reusable/SectionSelector';
-import { getPetitionById, updatePetition, createFir, getFirByPetitionId } from '../api/petition';
-import { parseComplainantDetails } from '../utils/petitionTextParser';
+import { getPetitionById, updatePetition, createFir, getFirByPetitionId, autofillFir } from '../api/petition';
 
-
+const blankAccused = () => ({
+  name: '',
+  relative: '',
+  occupation: '',
+  caste: '',
+  gender: '',
+  age: '',
+  nationality: '',
+  houseNo: '',
+  street: '',
+  area: '',
+  city: '',
+  state: '',
+  pin: '',
+  phoneOff: '',
+  phoneResi: '',
+  cellNo: '',
+  email: '',
+  dob: '',
+  build: '',
+  height: '',
+  complexion: '',
+  idMarks: '',
+  deformities: '',
+  teeth: '',
+  hair: '',
+  eyes: '',
+  habits: '',
+  dressHabits: '',
+  languages: '',
+  burnMark: '',
+  leucoderma: '',
+  mole: '',
+  scar: '',
+  tattoo: ''
+});
 
 export default function FIRDocument() {
   const { id } = useParams();
@@ -72,90 +106,8 @@ export default function FIRDocument() {
         const p = await getPetitionById(id);
         setPetition(p);
 
-
         // Parse sections
         setModalSections(p.sections || []);
-
-        // Split or map accused
-        let mappedAccused = [];
-        if (p.accused) {
-          // Check if there are multiple accused separated by 'and' or ','
-          const names = p.accused.split(/\s+and\s+|\s*,\s*/i);
-          mappedAccused = names.map(name => ({
-            name: name.trim(),
-            relative: '',
-            occupation: '',
-            caste: '',
-            gender: '',
-            age: '',
-            nationality: '',
-            houseNo: '',
-            street: '',
-            area: '',
-            city: '',
-            state: '',
-            pin: '',
-            phoneOff: '',
-            phoneResi: '',
-            cellNo: '',
-            email: '',
-            dob: '',
-            build: '',
-            height: '',
-            complexion: '',
-            idMarks: '',
-            deformities: '',
-            teeth: '',
-            hair: '',
-            eyes: '',
-            habits: '',
-            dressHabits: '',
-            languages: '',
-            burnMark: '',
-            leucoderma: '',
-            mole: '',
-            scar: '',
-            tattoo: ''
-          }));
-        } else {
-          mappedAccused = [{
-            name: '',
-            relative: '',
-            occupation: '',
-            caste: '',
-            gender: '',
-            age: '',
-            nationality: '',
-            houseNo: '',
-            street: '',
-            area: '',
-            city: '',
-            state: '',
-            pin: '',
-            phoneOff: '',
-            phoneResi: '',
-            cellNo: '',
-            email: '',
-            dob: '',
-            build: '',
-            height: '',
-            complexion: '',
-            idMarks: '',
-            deformities: '',
-            teeth: '',
-            hair: '',
-            eyes: '',
-            habits: '',
-            dressHabits: '',
-            languages: '',
-            burnMark: '',
-            leucoderma: '',
-            mole: '',
-            scar: '',
-            tattoo: ''
-          }];
-        }
-        setAccusedList(mappedAccused);
 
         // Pre-fill administrative "today" fields (filing/receipt timestamps — a fact
         // about when this FIR is being processed, not a fact being extracted from the
@@ -168,23 +120,44 @@ export default function FIRDocument() {
         if (p.status === 'FIR Filed') {
           try {
             firData = await getFirByPetitionId(p.id);
-            if (firData.accusedList && firData.accusedList.length > 0) {
-              setAccusedList(firData.accusedList);
-            }
           } catch (e) {
             console.error('Failed to fetch FIR data for petition:', e);
           }
         }
 
-        // Autofill is local-only: whatever the petition pipeline already extracted
-        // (complainant, accused, sections, translated document text), plus a local
-        // regex pass over the standard petition salutation line ("I, NAME S/o
-        // RELATIVE, Age: X, Occupation: Y, Ph.No. Z, R/o ADDRESS, respectfully
-        // submit...") — no API call. Fields that don't match a recognized pattern
-        // (place of occurrence, properties stolen — these need reading
-        // comprehension, not pattern-matching) stay blank rather than guessed.
+        // AI FIR field extraction — runs only while drafting (an already-filed
+        // FIR's own record above is authoritative, so skip the call there to
+        // save a redundant LLM round trip). Reads the officer-VERIFIED petition
+        // text (step2Output — approved through the pipeline's review steps, not
+        // the raw unverified OCR), and is cached server-side after first run.
+        // See backend/services/firAutofillService.js for the extraction schema.
+        let autofill = {};
+        if (p.status !== 'FIR Filed') {
+          try {
+            const result = await autofillFir(p.id);
+            autofill = result?.fields || {};
+          } catch (e) {
+            console.error('FIR autofill extraction failed:', e);
+          }
+        }
+
+        // Accused: prefer the already-filed FIR record, then AI-extracted
+        // accused details, then fall back to splitting the coarse Step 1
+        // complainant/accused names if neither is available.
+        let mappedAccused = [];
+        if (p.status === 'FIR Filed' && firData.accusedList?.length > 0) {
+          mappedAccused = firData.accusedList;
+        } else if (autofill.accusedList?.length > 0) {
+          mappedAccused = autofill.accusedList.map((a) => ({ ...blankAccused(), ...a }));
+        } else if (p.accused) {
+          const names = p.accused.split(/\s+and\s+|\s*,\s*/i);
+          mappedAccused = names.map((name) => ({ ...blankAccused(), name: name.trim() }));
+        } else {
+          mappedAccused = [blankAccused()];
+        }
+        setAccusedList(mappedAccused);
+
         const fullDocumentText = p.step2Output || p.step1Output || '';
-        const parsed = parseComplainantDetails(fullDocumentText);
 
         setFormData({
           district: firData.district || '',
@@ -193,11 +166,11 @@ export default function FIRDocument() {
           firNo: firData.firNo || p.firNo || '',
           firDate: firData.firDate || currentDateStr,
           firTime: firData.firTime || currentTimeStr,
-          occurrenceDay: firData.occurrenceDay || '',
-          occurrenceDateFrom: firData.occurrenceDateFrom || '',
-          occurrenceTimeFrom: firData.occurrenceTimeFrom || '',
-          occurrenceDateTo: firData.occurrenceDateTo || '',
-          occurrenceTimeTo: firData.occurrenceTimeTo || '',
+          occurrenceDay: firData.occurrenceDay || autofill.occurrenceDay || '',
+          occurrenceDateFrom: firData.occurrenceDateFrom || autofill.occurrenceDateFrom || '',
+          occurrenceTimeFrom: firData.occurrenceTimeFrom || autofill.occurrenceTimeFrom || '',
+          occurrenceDateTo: firData.occurrenceDateTo || autofill.occurrenceDateTo || '',
+          occurrenceTimeTo: firData.occurrenceTimeTo || autofill.occurrenceTimeTo || '',
           priorToTimePeriod: firData.priorToTimePeriod || '',
           receivedDate: firData.receivedDate || (p.date && p.date !== 'Just now' && p.date !== 'Yesterday' ? p.date : currentDateStr),
           receivedTime: firData.receivedTime || currentTimeStr,
@@ -206,24 +179,24 @@ export default function FIRDocument() {
           typeOfInformation: firData.typeOfInformation || 'Written',
           distanceDirection: firData.distanceDirection || '',
           beatNo: firData.beatNo || '',
-          occurrenceAddress: firData.occurrenceAddress || p.occurrencePlace || '',
+          occurrenceAddress: firData.occurrenceAddress || autofill.occurrenceAddress || p.occurrencePlace || '',
           outsideLimitPSName: firData.outsideLimitPSName || '',
           outsideLimitDistrict: firData.outsideLimitDistrict || '',
-          complainantName: firData.complainant || p.complainant || '',
-          complainantRelative: firData.complainantRelative || parsed.relative || '',
-          complainantDob: firData.complainantDob || '',
-          complainantAge: firData.complainantAge || parsed.age || '',
-          complainantNationality: firData.complainantNationality || '',
-          complainantCaste: firData.complainantCaste || '',
-          complainantPassport: firData.complainantPassport || '',
-          complainantPassportIssueDate: firData.complainantPassportIssueDate || '',
-          complainantPassportIssuePlace: firData.complainantPassportIssuePlace || '',
-          complainantOccupation: firData.complainantOccupation || parsed.occupation || '',
-          complainantMobile: firData.complainantPhone || parsed.mobile || '',
-          complainantAddress: firData.complainantAddress || parsed.address || '',
-          reasonsForDelay: firData.reasonsForDelay || '',
-          propertiesStolen: firData.propertiesStolen || '',
-          totalValueStolen: firData.totalValueStolen || '',
+          complainantName: firData.complainant || autofill.complainantName || p.complainant || '',
+          complainantRelative: firData.complainantRelative || autofill.complainantRelative || '',
+          complainantDob: firData.complainantDob || autofill.complainantDob || '',
+          complainantAge: firData.complainantAge || autofill.complainantAge || '',
+          complainantNationality: firData.complainantNationality || autofill.complainantNationality || '',
+          complainantCaste: firData.complainantCaste || autofill.complainantCaste || '',
+          complainantPassport: firData.complainantPassport || autofill.complainantPassport || '',
+          complainantPassportIssueDate: firData.complainantPassportIssueDate || autofill.complainantPassportIssueDate || '',
+          complainantPassportIssuePlace: firData.complainantPassportIssuePlace || autofill.complainantPassportIssuePlace || '',
+          complainantOccupation: firData.complainantOccupation || autofill.complainantOccupation || '',
+          complainantMobile: firData.complainantPhone || autofill.complainantMobile || '',
+          complainantAddress: firData.complainantAddress || autofill.complainantAddress || '',
+          reasonsForDelay: firData.reasonsForDelay || autofill.reasonsForDelay || '',
+          propertiesStolen: firData.propertiesStolen || autofill.propertiesStolen || '',
+          totalValueStolen: firData.totalValueStolen || autofill.totalValueStolen || '',
           inquestReport: firData.inquestReport || '',
           // Full translated petition text (falls back to raw OCR if translation is
           // unavailable) — not an AI-generated summary, the complete document as scanned.
@@ -260,42 +233,7 @@ export default function FIRDocument() {
   };
 
   const addAccused = () => {
-    setAccusedList(prev => [...prev, {
-      name: '',
-      relative: '',
-      occupation: '',
-      caste: '',
-      gender: '',
-      age: '',
-      nationality: '',
-      houseNo: '',
-      street: '',
-      area: '',
-      city: '',
-      state: '',
-      pin: '',
-      phoneOff: '',
-      phoneResi: '',
-      cellNo: '',
-      email: '',
-      dob: '',
-      build: '',
-      height: '',
-      complexion: '',
-      idMarks: '',
-      deformities: '',
-      teeth: '',
-      hair: '',
-      eyes: '',
-      habits: '',
-      dressHabits: '',
-      languages: '',
-      burnMark: '',
-      leucoderma: '',
-      mole: '',
-      scar: '',
-      tattoo: ''
-    }]);
+    setAccusedList(prev => [...prev, blankAccused()]);
   };
 
   const removeAccused = (index) => {

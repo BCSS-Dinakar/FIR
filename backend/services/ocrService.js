@@ -300,13 +300,69 @@ const resolveFilename = (mimeType, filename, sniffedFormat = null) => {
   return name ? ensureExtension(name, ext) : `document${ext}`;
 };
 
+/**
+ * Small OCR models can fall into a degenerate loop on illegible or
+ * out-of-distribution content — e.g. repeating an incrementing date/number
+ * pattern for hundreds of lines until max_tokens cuts it off. Real document
+ * text never repeats the same line shape this many times in a row, so a long
+ * run of structurally identical lines is a reliable loop signal.
+ *
+ * If good content precedes the loop, keep it and flag where it degenerated.
+ * If the loop starts at (or near) the very first line — a total OCR
+ * failure — return '' so the caller's empty-content check fails loudly
+ * instead of silently passing garbage downstream into translation/validation.
+ */
+const REPEAT_RUN_THRESHOLD = 8;
+/** Below this, the pre-loop scrap is itself more likely noise than a usable petition fragment. */
+const MIN_USABLE_PRELOOP_CHARS = 40;
+/**
+ * Lines shorter than this never count toward a loop run. Legitimate forms
+ * routinely repeat short values many times in a row (a "Sex" column reading
+ * "Male" for five accused, blank table cells, column-number headers) — only
+ * a run of substantially-sized lines is a reliable degenerate-loop signal.
+ */
+const MIN_LOOP_LINE_CHARS = 12;
+
+const lineShape = (line) => line.trim().toLowerCase().replace(/[0-9]/g, '#').replace(/\s+/g, ' ');
+
+const trimRepetitionLoop = (text) => {
+  const lines = text.split('\n');
+  const contentLines = [];
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.length >= MIN_LOOP_LINE_CHARS) contentLines.push({ index, shape: lineShape(trimmed) });
+  });
+
+  let runShape = null;
+  let runStartContentIdx = 0;
+  let runLength = 0;
+
+  for (let i = 0; i < contentLines.length; i++) {
+    const { shape } = contentLines[i];
+    if (shape === runShape) {
+      runLength++;
+    } else {
+      runShape = shape;
+      runLength = 1;
+      runStartContentIdx = i;
+    }
+    if (runLength >= REPEAT_RUN_THRESHOLD) {
+      const cutLineIndex = contentLines[runStartContentIdx].index;
+      const truncated = lines.slice(0, cutLineIndex).join('\n').trim();
+      if (truncated.length < MIN_USABLE_PRELOOP_CHARS) return '';
+      return `${truncated}\n\n[OCR truncated: the model repeated the same line pattern ${runLength}+ times in a row, likely due to illegible or unreadable content further into the document. Please verify the remainder manually.]`;
+    }
+  }
+  return text;
+};
+
 const normalizeOcrOutput = (text) => {
   let cleaned = stripModelReasoning(String(text || ''));
   cleaned = cleaned
     .replace(/^```(?:text|markdown)?\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim();
-  return cleaned;
+  return trimRepetitionLoop(cleaned);
 };
 
 const parseDocumentOcrResponse = (payload) => {

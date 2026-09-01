@@ -324,6 +324,8 @@ router.get('/:id/autofill-fir', async (req, res) => {
       return res.status(200).json({ success: true, fields: cached, cached: true });
     }
 
+    // Officer-verified text (step2Output) is authoritative; only fall back to
+    // raw step1Output when no translation/verification step has run yet.
     const sourceText = petition.step2Output || petition.step1Output;
     if (!sourceText) {
       return res.status(422).json({
@@ -334,7 +336,28 @@ router.get('/:id/autofill-fir', async (req, res) => {
 
     const fields = await extractFirFields(sourceText);
     const metadata = { ...(petition.metadata || {}), firAutofill: fields };
-    await petitionsRepo.updateByLegacyId(req.params.id, { metadata });
+
+    // Keep the petition record in step with the richer FIR extraction, so the
+    // status-board / draft-and-file cards don't keep showing "Unknown" while the
+    // FIR form displays properly extracted parties. Only fills placeholders left
+    // by the coarser pipeline pass ("Unknown", "Unknown Accused") — a real value
+    // already on the record (officer-entered or previously extracted) is never
+    // overwritten.
+    const isPlaceholder = (v) => !v || /^unknown\b/i.test(String(v).trim());
+    const patch = { metadata };
+
+    if (isPlaceholder(petition.complainant) && fields.complainantName) {
+      patch.complainant = fields.complainantName;
+    }
+    const extractedAccused = (fields.accusedList || [])
+      .map((a) => a.name)
+      .filter(Boolean)
+      .join(', ');
+    if (isPlaceholder(petition.accused) && extractedAccused) {
+      patch.accused = extractedAccused;
+    }
+
+    await petitionsRepo.updateByLegacyId(req.params.id, patch);
 
     return res.status(200).json({ success: true, fields, cached: false });
   } catch (error) {
