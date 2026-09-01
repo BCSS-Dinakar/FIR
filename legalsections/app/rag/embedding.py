@@ -54,7 +54,7 @@ def document_metadata(doc, source_index=None):
         "section_title": doc.get("section_title"),
         "chapter": doc.get("chapter"),
         "chapter_title": doc.get("chapter_title"),
-        "mongo_id": str(doc.get("_id", "")),
+        "mongo_id": str(doc.get("mongo_id") or doc.get("_id", "")),
     }
 
     if source_index is not None:
@@ -71,14 +71,14 @@ def mongo_doc_to_document(doc, source_index=None):
 
 
 def load_documents():
-    mongo_docs = get_all_documents()
-    if not mongo_docs:
+    docs = get_all_documents()
+    if not docs:
         raise RAGSetupError(
-            "No legal documents found in MongoDB. Check DATABASE_NAME and COLLECTION_NAME in .env."
+            "No legal documents found in PostgreSQL. Check POSTGRES_* in .env."
         )
 
     documents = []
-    for doc_index, doc in enumerate(mongo_docs):
+    for doc_index, doc in enumerate(docs):
         text = create_combined_text(doc)
         if not text:
             continue
@@ -91,9 +91,9 @@ def load_documents():
         )
 
     if not documents:
-        raise RAGSetupError("MongoDB documents did not contain indexable legal text.")
+        raise RAGSetupError("Legal documents did not contain indexable legal text.")
 
-    logger.info("Loaded %s legal documents from MongoDB", len(documents))
+    logger.info("Loaded %s legal documents from PostgreSQL", len(documents))
     return documents
 
 

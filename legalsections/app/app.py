@@ -13,6 +13,6 @@ logging.basicConfig(
 app = FastAPI(
     title="Legal RAG API",
     version="2.0.0",
-    description="MongoDB + FAISS retrieval pipeline with Gemini grounded generation.",
+    description="PostgreSQL + FAISS retrieval pipeline with vLLM grounded generation.",
 )
 app.include_router(router)

@@ -1,7 +1,7 @@
 import json
 import re
 
-from app.rag.gemini_client import generate_with_gemini
+from app.rag.llm_client import generate_with_llm
 from app.rag.translation import translate_to_english
 
 
@@ -174,7 +174,7 @@ English FIR/Petition Text:
 
     try:
         extracted = parse_json_response(
-            generate_with_gemini(prompt, max_output_tokens=1600)
+            generate_with_llm(prompt, max_output_tokens=1600)
         )
     except Exception:
         return fallback_extraction(fir_data, translated_text=translated_text)

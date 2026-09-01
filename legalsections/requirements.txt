@@ -2,10 +2,11 @@ fastapi
 uvicorn
 python-dotenv
 pymongo
+psycopg[binary]
 langchain
 langchain-community
 langchain-huggingface
 sentence-transformers
 faiss-cpu
-google-genai
+openai
 deep-translator

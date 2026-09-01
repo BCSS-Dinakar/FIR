@@ -8,6 +8,16 @@
     "dev": "nodemon server.js",
     "seed": "node scripts/seed.js",
     "cleanup": "node scripts/cleanup.js",
+    "db:schema": "node db/migrate/applyAppSchema.js",
+    "db:validate-uniques": "node db/migrate/validateUniques.js",
+    "db:validate-legal": "node db/migrate/validateLegal.js",
+    "db:ingest-embeddings": "node scripts/ingestLawEmbeddings.js",
+    "db:validate-rag": "node scripts/validatePgVectorRag.js",
+    "db:migrate-users": "node db/migrate/migrateUsers.js",
+    "db:migrate-petitions": "node db/migrate/migratePetitions.js",
+    "db:migrate-firs": "node db/migrate/migrateFirs.js",
+    "db:migrate-report": "node db/migrate/migrateReport.js",
+    "db:replay-sync": "node db/migrate/replayFailedMongoSync.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -24,7 +34,9 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.3",
     "multer": "^2.1.1",
-    "pdf-parse": "^1.1.1"
+    "openai": "^6.49.0",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

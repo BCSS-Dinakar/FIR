@@ -6,6 +6,7 @@ const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
+const { connectPostgres } = require('./config/postgres');
 const authRoutes = require('./routes/auth');
 const petitionRoutes = require('./routes/petition');
 const firRoutes = require('./routes/fir');
@@ -42,6 +43,19 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Start Server
 app.listen(PORT, async () => {
-  await connectDB();
+  try {
+    await connectPostgres();
+  } catch (err) {
+    console.error(`❌ PostgreSQL connection failed: ${err.message}`);
+    process.exit(1);
+  }
+
+  // Mongo retained for Phase A dual-write / fallback (non-fatal if sync-only).
+  try {
+    await connectDB();
+  } catch (err) {
+    console.warn(`⚠️ MongoDB connection failed (fallback/sync degraded): ${err.message}`);
+  }
+
   console.log(`🚀 Server running on port ${PORT}`);
 });

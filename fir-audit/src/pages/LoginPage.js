@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import FIRButton from '../components/reusable/FIRButton';
 import { registerUser, loginUser, checkMe } from '../api/auth';
+import { useGlobals } from '../context/GlobalsContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { setOfficer, refetchUser } = useGlobals();
 
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -18,18 +20,24 @@ export default function LoginPage() {
 
   // Check if session is already active on mount
   useEffect(() => {
+    let cancelled = false;
     const verifySession = async () => {
       try {
         const data = await checkMe();
+        if (cancelled) return;
         if (data && data.success && data.user) {
-          navigate('/dashboard');
+          setOfficer(data.user);
+          navigate('/dashboard', { replace: true });
         }
       } catch (err) {
         // session invalid
       }
     };
     verifySession();
-  }, [navigate]);
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, setOfficer]);
 
   const [email, setEmail] = useState('shiva@firaudit.gov.in');
   const [password, setPassword] = useState('password123');
@@ -73,8 +81,12 @@ export default function LoginPage() {
     try {
       const data = await loginUser({ email, password });
 
-      if (data && data.success) {
-        navigate('/dashboard');
+      if (data && data.success && data.user) {
+        // Must populate GlobalsContext before leaving /login — otherwise FIRLayout
+        // sees officer=null and immediately bounces back (login↔dashboard flicker).
+        setOfficer(data.user);
+        await refetchUser().catch(() => {});
+        navigate('/dashboard', { replace: true });
         return;
       } else {
         setErrorMsg((data && data.message) || 'Authentication failed');

@@ -1,0 +1,28 @@
+-- Optional: requires pgvector on the PostgreSQL server.
+-- Install on the host first, then as a superuser:
+--   CREATE EXTENSION IF NOT EXISTS vector;
+--
+-- Table DDL is also applied by scripts/ingestLawEmbeddings.js with the
+-- embedding dimension from the active EMBEDDING_MODEL. This file documents
+-- the intended schema for manual/ops use.
+
+-- CREATE TABLE law_embeddings (
+--   id BIGSERIAL PRIMARY KEY,
+--   chunk_type TEXT NOT NULL,
+--   chunk_id BIGINT NOT NULL,
+--   section_id BIGINT NOT NULL REFERENCES laws_sections(id) ON DELETE CASCADE,
+--   law_name TEXT NOT NULL,
+--   section_number TEXT NOT NULL,
+--   embedding vector NOT NULL,
+--   embedding_model TEXT NOT NULL,
+--   embedding_dimension INTEGER NOT NULL,
+--   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+--   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+--   UNIQUE (chunk_type, chunk_id, embedding_model)
+-- );
+--
+-- CREATE INDEX IF NOT EXISTS idx_law_embeddings_model ON law_embeddings (embedding_model);
+-- CREATE INDEX IF NOT EXISTS idx_law_embeddings_section ON law_embeddings (section_id);
+-- Optional ANN index after ingest (corpus is small; brute-force is fine initially):
+-- CREATE INDEX idx_law_embeddings_hnsw ON law_embeddings
+--   USING hnsw (embedding vector_cosine_ops);

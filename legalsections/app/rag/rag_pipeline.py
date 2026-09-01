@@ -1,4 +1,4 @@
-from app.rag.gemini_client import generate_legal_answer
+from app.rag.llm_client import generate_legal_answer
 from app.rag.retrieval import retrieve_documents
 
 

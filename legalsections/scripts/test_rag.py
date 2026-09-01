@@ -38,11 +38,11 @@ def print_answer(query, top_k):
     try:
         result = rag_pipeline(query, top_k=top_k)
     except (LLMConnectionError, RAGSetupError) as exc:
-        print("\nGemini Answer:")
+        print("\nvLLM Answer:")
         print(f"  Skipped: {exc}")
         return
 
-    print("\nGemini Answer:")
+    print("\nvLLM Answer:")
     print(result["answer"])
     print("\nReturned Documents:")
     for index, doc in enumerate(result["retrieved_documents"], start=1):

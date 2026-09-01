@@ -1,3 +1,8 @@
+/**
+ * @deprecated Runtime RAG no longer reads bnsEmbeddings.json.
+ * Dense search uses PostgreSQL pgvector (law_embeddings) when available.
+ * Kept for reference / one-off migration tooling only.
+ */
 const fs = require('fs');
 const path = require('path');
 

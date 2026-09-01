@@ -3,8 +3,8 @@
  * recommendation for clear-cut facts, and false-positive resistance for facts that
  * share vocabulary with a section but don't satisfy its legal elements.
  *
- * Requires: GEMINI_API_KEY configured, and backend/data/bnsEmbeddings.json built via
- * "node scripts/ingestBnsEmbeddings.js". Makes real Gemini API calls.
+ * Requires: VLLM_* configured. Hybrid retrieval uses PostgreSQL search_laws_rag + BM25;
+ * optional pgvector dense search when EMBEDDING_* is set and law_embeddings is ingested.
  *
  * Usage: node scripts/test_bns_rag.js
  */
@@ -67,8 +67,15 @@ const run = async () => {
         .filter((r) => r.confidence >= bnsRagService.CONFIDENCE_THRESHOLD)
         .map((r) => r.code);
 
-      const fmt = (x) => `${x.code}:${x.similarity !== null ? 'v' + x.similarity.toFixed(3) : ''}${x.lexicalScore !== null ? (x.similarity !== null ? '/' : '') + 'k' + x.lexicalScore.toFixed(1) : ''}`;
-      console.log(`  Retrieved ${candidates.length} candidates (v=vector, k=keyword): ${candidates.slice(0, 8).map(fmt).join(', ')}`);
+      const fmt = (x) => {
+        const parts = [];
+        if (x.vectorScore != null) parts.push(`v${x.vectorScore.toFixed(3)}`);
+        else if (x.similarity != null) parts.push(`v${x.similarity.toFixed(3)}`);
+        if (x.ftsScore != null) parts.push(`f${x.ftsScore.toFixed(3)}`);
+        if (x.lexicalScore != null) parts.push(`k${x.lexicalScore.toFixed(1)}`);
+        return `${x.code}[${parts.join('/')}]`;
+      };
+      console.log(`  Retrieved ${candidates.length} candidates (v=vector, f=fts, k=keyword): ${candidates.slice(0, 8).map(fmt).join(', ')}`);
       console.log(`  Reranked (all, pre-threshold): ${reranked.map((r) => `${r.code}:${r.confidence}`).join(', ') || '(none)'}`);
       console.log(`  Final recommendations (>= ${bnsRagService.CONFIDENCE_THRESHOLD}): ${resultCodes.join(', ') || '(none)'}`);
 

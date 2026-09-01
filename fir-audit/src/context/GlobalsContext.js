@@ -41,11 +41,14 @@ export const GlobalsProvider = ({ children }) => {
         if (data.user.sidebarCollapse !== undefined) {
           setCollapsed(data.user.sidebarCollapse);
         }
+        return data.user;
       } else {
         setOfficer(null);
+        return null;
       }
     } catch (err) {
       setOfficer(null);
+      return null;
     } finally {
       setLoadingUser(false);
     }

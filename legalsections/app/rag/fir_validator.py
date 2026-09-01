@@ -6,7 +6,7 @@ from app.config import SIMILARITY_SCORE_THRESHOLD
 from app.database import find_section
 from app.rag.embedding import mongo_doc_to_document
 from app.rag.fir_extractor import extract_fir_details
-from app.rag.gemini_client import generate_with_gemini
+from app.rag.llm_client import generate_with_llm
 from app.rag.retrieval import format_result
 from app.rag.vector_store import similarity_search
 
@@ -462,7 +462,7 @@ Rules:
 Malformed response:
 {validation_text}
 """.strip()
-    return generate_with_gemini(prompt, max_output_tokens=2000)
+    return generate_with_llm(prompt, max_output_tokens=2000)
 
 
 def validate_fir(fir_data, top_k=5):
@@ -531,7 +531,7 @@ def validate_fir(fir_data, top_k=5):
         for item in retrieved
     ]
     prompt = build_validation_prompt(fir_data, context, retrieved_documents)
-    validation_text = generate_with_gemini(prompt, max_output_tokens=4000)
+    validation_text = generate_with_llm(prompt, max_output_tokens=4000)
 
     try:
         validation = parse_validation_json(validation_text)

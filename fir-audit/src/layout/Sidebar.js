@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { logoutUser } from '../api/auth';
+import { useGlobals } from '../context/GlobalsContext';
 
 const navGroups = [
   {
@@ -89,6 +90,7 @@ const navGroups = [
 export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, T, officer }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { setOfficer } = useGlobals();
 
   if (!officer) return null;
 
@@ -251,7 +253,8 @@ export default function Sidebar({ dark, collapsed, setCollapsed, setMobileOpen, 
             } catch (err) {
               console.error('Logout error:', err);
             }
-            navigate('/login');
+            setOfficer(null);
+            navigate('/login', { replace: true });
           }}
           title={collapsed ? 'Sign Out' : undefined}
           className={`flex items-center w-full rounded-xl text-xs font-bold transition-all duration-200 ${
