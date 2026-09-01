@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-09-01T13:22:52.101Z",
+  "embeddingModel": "BAAI/bge-m3",
+  "embeddingEndpoint": "http://127.0.0.1:8080/v1",
+  "vectorDimension": 1024,
+  "pgvector": "NOT INSTALLED",
+  "legalChunks": 4620,
+  "embeddedChunks": 0,
+  "missingEmbeddings": 4620,
+  "orphanEmbeddings": 0,
+  "retrieval": {
+    "bm25": 50,
+    "fts": 31,
+    "trigram": 30,
+    "vector": 0,
+    "semanticStatus": "NOT_CONFIGURED",
+    "union": 70,
+    "rrfFinal": 20,
+    "rrfLimit": 20,
+    "weights": {
+      "bm25": 1,
+      "fts": 0.8,
+      "trigram": 0.4,
+      "semantic": 1
+    }
+  },
+  "latenciesMs": {
+    "semanticMs": 0.572873,
+    "ftsMs": 692.995388,
+    "bm25Ms": 970.321516,
+    "trigramMs": 1147.524686,
+    "fusionMs": 1148.091832,
+    "totalMs": 1148.097834
+  },
+  "topCandidates": [
+    {
+      "code": "BNS 351",
+      "sources": [
+        "bm25",
+        "fts",
+        "trigram"
+      ],
+      "rrfScore": 0.030618212197159565
+    },
+    {
+      "code": "BNSS 176",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.028629032258064516
+    },
+    {
+      "code": "BNS 232",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.027820636451301832
+    },
+    {
+      "code": "BNSS 185",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.027140621506818688
+    },
+    {
+      "code": "BNSS 216",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.026613965744400527
+    }
+  ],
+  "productionReadiness": {
+    "pgvector": false,
+    "embeddingsIngested": false,
+    "embeddingEndpoint": true,
+    "semanticRetrieval": false,
+    "lexicalRetrieval": true
+  }
+}

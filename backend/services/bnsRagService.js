@@ -1,13 +1,7 @@
 const { generateText } = require('./aiService');
-const {
-  generateEmbedding,
-  getEmbeddingModelId,
-  EmbeddingNotConfiguredError
-} = require('./embeddingService');
 const bnsCatalogService = require('./bnsCatalogService');
-const lawsRepo = require('../repositories/lawsRepo');
-const lawEmbeddingsRepo = require('../repositories/lawEmbeddingsRepo');
-const { searchLexical } = require('./bnsLexicalIndex');
+const { retrieveHybridCandidates } = require('./ragRetrievalService');
+const config = require('./ragRetrievalConfig');
 const {
   sanitizePetitionText,
   isBlank,
@@ -15,8 +9,6 @@ const {
   normalizeRerankSections
 } = require('../helpers/llmUtils');
 
-const RETRIEVAL_TOP_K = 15;
-const LEXICAL_TOP_M = 15;
 const CONFIDENCE_THRESHOLD = 0.5;
 
 const extractIncidentFacts = async (content) => {
@@ -27,21 +19,18 @@ const extractIncidentFacts = async (content) => {
 
 INCLUDE (only when present in the text):
 - Conduct of the accused, step by step
-- Legally material relationship (spouse, employer, stranger, etc.)
-- Stated or evident intent/motive
-- Threats (nature and target)
-- Physical harm (severity, body part, weapon, medical outcome)
+- Legally material acts committed
 - Property (what, how taken/damaged/withheld)
-- Deception or false representation
-- Forged/falsified documents or signatures
-- Unlawful entry or trespass
-- Restraint or confinement
-- Extortion or coercion
-- Cyber/online conduct (platform, account, transaction) when stated
-- Any other legally material fact
+- Deception, false representation, or inducement
+- Threats (nature and target) and force used
+- Physical harm (severity, body part, weapon, medical outcome) and death when stated
+- Relationship between parties when legally material
+- Method and relevant circumstances
+- Explicit intent or motive when stated
+- Forged/falsified documents, unlawful entry, restraint, extortion, cyber conduct when stated
 
 STRICT RULES:
-- No names, addresses, dates, salutations, or section numbers.
+- No names, addresses, dates, salutations, police-station boilerplate, or section numbers.
 - No legal conclusions ("this is theft", "assault", etc.).
 - No invented or inferred facts.
 - Omit empty categories — do not pad.
@@ -55,85 +44,56 @@ ${petition}`;
   return sanitizePetitionText(facts, { maxChars: 4000 });
 };
 
-const mergeCandidate = (map, code, patch) => {
-  const existing = map.get(code) || {
-    code,
-    vectorScore: null,
-    ftsScore: null,
-    lexicalScore: null
-  };
-  map.set(code, { ...existing, ...patch, code });
-};
+const attachCatalogEntries = async (retrievalCandidates) => {
+  const entries = await Promise.all(
+    retrievalCandidates.map((candidate) => bnsCatalogService.getByCode(candidate.code))
+  );
 
-/**
- * Hybrid retrieval: PostgreSQL FTS/trigram + optional pgvector + in-process BM25.
- * Does not use bnsEmbeddings.json at runtime.
- */
-const retrieveCandidates = async (facts) => {
-  const byCode = new Map();
-
-  try {
-    const ftsRows = await lawsRepo.searchLawsRag(facts, null, RETRIEVAL_TOP_K * 3);
-    lawEmbeddingsRepo.dedupeFtsRowsToSections(ftsRows, RETRIEVAL_TOP_K).forEach((m) => {
-      mergeCandidate(byCode, m.code, { ftsScore: m.score });
-    });
-  } catch (error) {
-    console.warn('[bnsRagService] PostgreSQL FTS retrieval failed:', error.message);
-  }
-
-  const embeddingModel = getEmbeddingModelId();
-  if (embeddingModel) {
-    try {
-      const stats = await lawEmbeddingsRepo.getEmbeddingStats(embeddingModel);
-      if (stats.pgvector && stats.count > 0) {
-        const queryEmbedding = await generateEmbedding(facts);
-        const vectorMatches = await lawEmbeddingsRepo.searchSimilarSections(
-          queryEmbedding,
-          embeddingModel,
-          RETRIEVAL_TOP_K
-        );
-        vectorMatches.forEach((m) => {
-          mergeCandidate(byCode, m.code, { vectorScore: m.score });
-        });
-      }
-    } catch (error) {
-      if (!(error instanceof EmbeddingNotConfiguredError)) {
-        console.warn('[bnsRagService] pgvector retrieval failed:', error.message);
-      }
-    }
-  }
-
-  const lexicalMatches = await searchLexical(facts, LEXICAL_TOP_M);
-  lexicalMatches.forEach((m) => {
-    mergeCandidate(byCode, m.code, { lexicalScore: m.score });
-  });
-
-  if (byCode.size === 0) {
-    throw new Error(
-      'No legal section candidates retrieved. Check PostgreSQL connectivity and search_laws_rag().'
-    );
-  }
-
-  const merged = [...byCode.values()];
-  const entries = await Promise.all(merged.map((m) => bnsCatalogService.getByCode(m.code)));
-  return merged
-    .map((m, i) => {
-      if (!entries[i]) return null;
+  return retrievalCandidates
+    .map((candidate, index) => {
+      const entry = entries[index];
+      if (!entry) return null;
       return {
-        ...entries[i],
-        similarity: m.vectorScore ?? m.ftsScore ?? null,
-        vectorScore: m.vectorScore,
-        ftsScore: m.ftsScore,
-        lexicalScore: m.lexicalScore
+        ...entry,
+        similarity: candidate.semanticScore ?? candidate.ftsScore ?? candidate.bm25Score ?? null,
+        vectorScore: candidate.semanticScore,
+        ftsScore: candidate.ftsScore,
+        lexicalScore: candidate.bm25Score,
+        trigramScore: candidate.trigramScore,
+        bm25Score: candidate.bm25Score,
+        semanticScore: candidate.semanticScore,
+        rrfScore: candidate.rrfScore,
+        retrievalMeta: {
+          bm25Rank: candidate.bm25Rank,
+          ftsRank: candidate.ftsRank,
+          trigramRank: candidate.trigramRank,
+          semanticRank: candidate.semanticRank,
+          sources: candidate.sources,
+          matchedChunks: candidate.matchedChunks
+        }
       };
     })
     .filter(Boolean);
 };
 
+/**
+ * Hybrid RAG retrieval: independent lexical (BM25 + FTS + trigram) + semantic paths,
+ * union, dedupe, RRF fusion, then top-K candidates for the legal judge.
+ */
+const retrieveCandidates = async (facts, options = {}) => {
+  const { candidates, stats } = await retrieveHybridCandidates(facts, options);
+  const enriched = await attachCatalogEntries(candidates);
+  enriched.retrievalStats = stats;
+  return enriched;
+};
+
 const rerankSections = async (facts, candidates) => {
   if (!facts?.trim() || candidates.length === 0) return [];
 
-  const candidatesForPrompt = candidates.map((c) => ({
+  const judgeLimit = config.FINAL_CANDIDATE_LIMIT;
+  const forJudge = candidates.slice(0, judgeLimit);
+
+  const candidatesForPrompt = forJudge.map((c) => ({
     code: c.code,
     law: c.law,
     title: c.title,
@@ -155,6 +115,7 @@ ${JSON.stringify(candidatesForPrompt)}
 
 REJECTION RULES (edge cases):
 - Keyword overlap alone is NOT enough — all major legal elements must match.
+- Never invent facts. Use only the incident facts above.
 - No death/homicide sections unless death or attempt to cause death is stated.
 - No sexual/modesty sections unless explicitly stated.
 - No dowry/cruelty sections unless explicitly stated.
@@ -170,7 +131,7 @@ For each selected section provide confidence 0.0–1.0 (exclude below 0.5).
 
 Return ONLY JSON:
 {
-  "sections": [
+  "recommendations": [
     {
       "code": "BNS 115",
       "law": "BNS",
@@ -183,15 +144,17 @@ Return ONLY JSON:
 }`;
 
   const response = await generateText(prompt, 1400, { mode: 'json', jsonMode: true });
-  const parsed = parseJsonFromLlm(response, { fallback: { sections: [] }, label: 'BNS reranker' });
-  return normalizeRerankSections(parsed.sections);
+  const parsed = parseJsonFromLlm(response, { fallback: { recommendations: [] }, label: 'BNS reranker' });
+  const sections = parsed.recommendations || parsed.sections || [];
+  return normalizeRerankSections(sections);
 };
 
 const recommendSections = async (translatedContent) => {
   const facts = await extractIncidentFacts(translatedContent);
-  if (!facts) return { facts: '', recommendations: [] };
+  if (!facts) return { facts: '', recommendations: [], retrievalStats: null };
 
   const candidates = await retrieveCandidates(facts);
+  const retrievalStats = candidates.retrievalStats || null;
   const reranked = await rerankSections(facts, candidates);
 
   const aboveThreshold = reranked.filter((r) => r.confidence >= CONFIDENCE_THRESHOLD);
@@ -210,7 +173,14 @@ const recommendSections = async (translatedContent) => {
       reason: r.reason
     }));
 
-  return { facts, recommendations };
+  if (retrievalStats) {
+    console.log(
+      `[bnsRagService] judge accepted ${recommendations.length}/${candidates.length} candidates ` +
+        `(threshold=${CONFIDENCE_THRESHOLD})`
+    );
+  }
+
+  return { facts, recommendations, retrievalStats };
 };
 
 module.exports = {

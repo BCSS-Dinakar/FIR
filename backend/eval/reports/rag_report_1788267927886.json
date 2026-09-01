@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-09-01T13:05:27.885Z",
+  "embeddingModel": "(not configured)",
+  "embeddingEndpoint": "(not configured)",
+  "vectorDimension": null,
+  "pgvector": "NOT INSTALLED",
+  "legalChunks": 4620,
+  "embeddedChunks": 0,
+  "missingEmbeddings": 4620,
+  "orphanEmbeddings": 0,
+  "retrieval": {
+    "bm25": 50,
+    "fts": 31,
+    "trigram": 30,
+    "vector": 0,
+    "semanticStatus": "not_configured",
+    "union": 70,
+    "rrfFinal": 20,
+    "rrfLimit": 20,
+    "weights": {
+      "bm25": 1,
+      "fts": 0.8,
+      "trigram": 0.4,
+      "semantic": 1
+    }
+  },
+  "latenciesMs": {
+    "semanticMs": 0.166813,
+    "ftsMs": 427.35888,
+    "bm25Ms": 653.251944,
+    "trigramMs": 1071.678943,
+    "fusionMs": 1072.551654,
+    "totalMs": 1072.561871
+  },
+  "topCandidates": [
+    {
+      "code": "BNS 351",
+      "sources": [
+        "bm25",
+        "fts",
+        "trigram"
+      ],
+      "rrfScore": 0.030618212197159565
+    },
+    {
+      "code": "BNSS 176",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.028629032258064516
+    },
+    {
+      "code": "BNS 232",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.027820636451301832
+    },
+    {
+      "code": "BNSS 185",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.027140621506818688
+    },
+    {
+      "code": "BNSS 216",
+      "sources": [
+        "bm25",
+        "fts"
+      ],
+      "rrfScore": 0.026613965744400527
+    }
+  ],
+  "productionReadiness": {
+    "pgvector": false,
+    "embeddingsIngested": false,
+    "embeddingEndpoint": false,
+    "semanticRetrieval": false,
+    "lexicalRetrieval": true
+  }
+}

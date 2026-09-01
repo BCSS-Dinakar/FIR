@@ -1,0 +1,42 @@
+[
+  {
+    "id": "hurt-clear",
+    "facts": "The accused, in a fit of anger during an argument, slapped the complainant twice across the face and punched him in the chest, causing pain and a swollen cheek. No weapon was used and no fracture occurred.",
+    "expectedCodes": ["BNS 115", "BNS 117", "BNS 114"]
+  },
+  {
+    "id": "cheating-clear",
+    "facts": "The accused approached the complainant claiming to sell a plot of land, collected Rs. 5,00,000 as advance payment using a fake sale deed, and then stopped responding. The land the accused showed did not belong to him.",
+    "expectedCodes": ["BNS 318"]
+  },
+  {
+    "id": "theft-snatching",
+    "facts": "The accused threatened the complainant with a knife and forcibly took his mobile phone.",
+    "expectedCodes": ["BNS 303", "BNS 309", "BNS 311"]
+  },
+  {
+    "id": "criminal-intimidation",
+    "facts": "The accused repeatedly threatened to kill the complainant if he did not withdraw the complaint and sent abusive messages demanding money.",
+    "expectedCodes": ["BNS 351", "BNS 308"]
+  },
+  {
+    "id": "verbal-argument-negative",
+    "facts": "The accused and complainant, who are neighbours, had a heated verbal argument over a parking spot. Both raised their voices and exchanged insults. No one touched the other.",
+    "expectedCodes": []
+  },
+  {
+    "id": "death-context-negative",
+    "facts": "The complainant states that after her father's death last year, the accused refused to hand over her share of the inherited property and has been verbally threatening to evict her from the house.",
+    "expectedCodes": []
+  },
+  {
+    "id": "rental-deposit-negative",
+    "facts": "The complainant, a tenant, alleges the landlord refused to return the security deposit of Rs. 20,000 after the complainant vacated the rented flat, despite repeated requests.",
+    "expectedCodes": []
+  },
+  {
+    "id": "ocr-theft-typo",
+    "facts": "Accused dishonestly took complainant movible property mobile fone without consent from shop counter.",
+    "expectedCodes": ["BNS 303"]
+  }
+]

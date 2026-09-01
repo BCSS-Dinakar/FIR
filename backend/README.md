@@ -12,7 +12,7 @@ Node.js / Express backend for the FIRAudit platform. Handles officer authenticat
 - **Security:** Bcrypt, JWT via HTTP-only cookies
 - **Text AI:** vLLM (OpenAI-compatible API, e.g. Qwen)
 - **OCR:** PaddleOCR-VL gateway (images + PDF/DOCX)
-- **RAG:** PostgreSQL FTS/trigram + optional pgvector embeddings
+- **RAG:** Hybrid retrieval — BM25 + PostgreSQL FTS + trigram + optional pgvector (independent paths, RRF fusion) → Qwen legal judge
 
 ---
 
@@ -70,6 +70,31 @@ See `.env.example` for the full list (embeddings, pgvector ingest, Mongo sync fl
 npm install
 npm run dev    # nodemon, default http://localhost:5000
 ```
+
+### Hybrid RAG (section recommendations)
+
+Retrieval runs **independent lexical and semantic paths**, unions candidates, deduplicates by section code, and fuses ranks with **RRF** before the Qwen legal judge:
+
+```text
+Facts → BM25 (50) + FTS (50) + Trigram (30)  ─┐
+                                               ├→ UNION → RRF → Top 20 → Qwen judge
+Facts → Embedding → pgvector (30)  ────────────┘
+```
+
+Scripts:
+
+```bash
+npm run db:ingest-embeddings   # after EMBEDDING_* + pgvector are configured
+npm run db:test-embedding      # probe /v1/embeddings before ingest
+npm run db:audit-embeddings    # coverage + integrity report
+npm run db:validate-rag        # full PASS/DEGRADED/NOT_CONFIGURED/FAIL validation
+npm run db:validate-rag-integrity  # UNION, dedup, RRF structural tests
+npm run db:generate-eval-cases # expand eval dataset from PostgreSQL catalog
+npm run db:eval-rag            # Recall@5/10/20/30 ablation (modes A–D)
+npm run db:rag-report          # production readiness JSON report
+```
+
+Configure limits and RRF weights via `RAG_*` env vars in `.env.example`. Semantic retrieval degrades gracefully when `EMBEDDING_*` is unset.
 
 ---
 

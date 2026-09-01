@@ -7,6 +7,30 @@ const ACT_FULL_NAMES = {
   BSA: 'Bharatiya Sakshya Adhiniyam, 2023'
 };
 
+const FTS_STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'is', 'was', 'were', 'be', 'been', 'being',
+  'for', 'with', 'by', 'on', 'at', 'as', 'that', 'this', 'it', 'its', 'from', 'any', 'such',
+  'shall', 'may', 'not', 'who', 'whoever', 'which', 'he', 'she', 'his', 'her', 'him', 'they',
+  'them', 'their', 'said', 'section', 'accused', 'complainant', 'victim', 'person', 'persons'
+]);
+
+const extractFtsTerms = (text, maxTerms = 15) => {
+  const tokens = String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 2 && !FTS_STOPWORDS.has(t));
+  return [...new Set(tokens)].slice(0, maxTerms);
+};
+
+const buildOrTsQueryString = (terms) => {
+  const safe = terms
+    .map((t) => t.replace(/[^a-z0-9]/g, ''))
+    .filter((t) => t.length > 2);
+  if (!safe.length) return null;
+  return safe.join(' | ');
+};
+
 let catalogCache = null;
 let catalogListCache = null;
 
@@ -135,6 +159,90 @@ const searchLawsRag = async (searchQuery, lawFilter = null, limit = 20) => {
   return rows;
 };
 
+/** Pure PostgreSQL FTS over v_laws_rag_chunks (no trigram component). */
+const searchLawsFts = async (searchQuery, lawFilter = null, limit = 50) => {
+  const execute = async (tsqBuilderSql, tsqParam) => {
+    const params = [tsqParam];
+    let lawClause = '';
+    if (lawFilter) {
+      params.push(lawFilter);
+      lawClause = 'AND c.law_name = $2';
+    }
+    params.push(limit);
+    const limitParam = `$${params.length}`;
+
+    const { rows } = await query(
+      `WITH q AS (
+         SELECT ${tsqBuilderSql} AS tsq
+       )
+       SELECT
+         c.chunk_type,
+         c.chunk_id,
+         c.section_id,
+         c.law_name,
+         c.section_number,
+         c.section_title,
+         c.chapter,
+         c.content,
+         ts_rank_cd(c.search_tsv, q.tsq)::real AS rank
+       FROM v_laws_rag_chunks c
+       CROSS JOIN q
+       WHERE q.tsq <> ''::tsquery
+         ${lawClause}
+         AND c.search_tsv @@ q.tsq
+       ORDER BY rank DESC, c.law_name, c.section_sort NULLS LAST, c.sort_order
+       LIMIT GREATEST(${limitParam}::int, 1)`,
+      params
+    );
+    return rows;
+  };
+
+  let rows = await execute(`plainto_tsquery('laws_en', $1)`, searchQuery);
+  if (rows.length === 0) {
+    const orQuery = buildOrTsQueryString(extractFtsTerms(searchQuery));
+    if (orQuery) {
+      rows = await execute(`to_tsquery('laws_en', $1)`, orQuery);
+    }
+  }
+  return rows;
+};
+
+/** Pure pg_trgm fuzzy retrieval over v_laws_rag_chunks. */
+const searchLawsTrigram = async (searchQuery, lawFilter = null, limit = 30) => {
+  const params = [searchQuery, limit];
+  let lawClause = '';
+  if (lawFilter) {
+    params.splice(1, 0, lawFilter);
+    lawClause = 'AND c.law_name = $2';
+  }
+
+  const limitParam = lawFilter ? '$3' : '$2';
+  const { rows } = await query(
+    `SELECT
+       c.chunk_type,
+       c.chunk_id,
+       c.section_id,
+       c.law_name,
+       c.section_number,
+       c.section_title,
+       c.chapter,
+       c.content,
+       similarity(c.content, $1)::real AS rank
+     FROM v_laws_rag_chunks c
+     WHERE ($1 <> '')
+       ${lawClause}
+       AND (
+         c.content % $1
+         OR c.section_title % $1
+         OR similarity(c.content, $1) > 0.08
+       )
+     ORDER BY rank DESC, c.law_name, c.section_sort NULLS LAST, c.sort_order
+     LIMIT GREATEST(${limitParam}::int, 1)`,
+    params
+  );
+  return rows;
+};
+
 const loadCatalogEntries = async () => {
   if (catalogCache) return catalogCache;
 
@@ -193,6 +301,8 @@ module.exports = {
   loadAllSections,
   findSection,
   searchLawsRag,
+  searchLawsFts,
+  searchLawsTrigram,
   loadCatalogEntries,
   getAllEntries,
   clearCatalogCache,

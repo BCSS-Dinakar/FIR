@@ -111,9 +111,36 @@ const generateEmbeddingsBatch = async (texts, onBatchComplete) => {
 
 const getEmbeddingModelId = () => EMBEDDING_MODEL || null;
 
+const isEmbeddingConfigured = () => Boolean(EMBEDDING_BASE_URL && EMBEDDING_MODEL);
+
+/**
+ * Probe /v1/embeddings with a short legal test string.
+ * @returns {Promise<{ ok: boolean, dimension: number|null, model: string|null, error: string|null, latencyMs: number }>}
+ */
+const probeEmbeddingEndpoint = async (testText = 'theft of movable property without consent') => {
+  if (!isEmbeddingConfigured()) {
+    return { ok: false, dimension: null, model: null, error: 'EMBEDDING_BASE_URL or EMBEDDING_MODEL not set', latencyMs: 0 };
+  }
+
+  const start = process.hrtime.bigint();
+  try {
+    const [vector] = await generateEmbeddingsBatch([testText]);
+    const latencyMs = Number(process.hrtime.bigint() - start) / 1e6;
+    if (!Array.isArray(vector) || vector.length === 0) {
+      return { ok: false, dimension: null, model: EMBEDDING_MODEL, error: 'Empty embedding vector returned', latencyMs };
+    }
+    return { ok: true, dimension: vector.length, model: EMBEDDING_MODEL, error: null, latencyMs };
+  } catch (error) {
+    const latencyMs = Number(process.hrtime.bigint() - start) / 1e6;
+    return { ok: false, dimension: null, model: EMBEDDING_MODEL, error: errorMessage(error), latencyMs };
+  }
+};
+
 module.exports = {
   generateEmbedding,
   generateEmbeddingsBatch,
   getEmbeddingModelId,
+  isEmbeddingConfigured,
+  probeEmbeddingEndpoint,
   EmbeddingNotConfiguredError
 };

@@ -1,0 +1,25 @@
+# BAAI/bge-m3 embedding server (OpenAI-compatible /v1/embeddings)
+#
+# Start:  docker compose -f docker/docker-compose.embeddings.yml up -d
+# Probe:  curl http://127.0.0.1:8080/v1/embeddings -H "Content-Type: application/json" \
+#           -d '{"model":"BAAI/bge-m3","input":"theft"}'
+#
+# Then in backend/.env:
+#   EMBEDDING_BASE_URL=http://127.0.0.1:8080/v1
+#   EMBEDDING_API_KEY=not-needed
+#   EMBEDDING_MODEL=BAAI/bge-m3
+
+services:
+  bge-m3-embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+    container_name: firaudit-bge-m3
+    ports:
+      - "8080:80"
+    environment:
+      MODEL_ID: BAAI/bge-m3
+    volumes:
+      - tei-bge-m3-cache:/data
+    restart: unless-stopped
+
+volumes:
+  tei-bge-m3-cache:

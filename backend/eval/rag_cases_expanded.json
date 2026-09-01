@@ -1,0 +1,435 @@
+[
+  {
+    "id": "hurt-clear",
+    "facts": "The accused, in a fit of anger during an argument, slapped the complainant twice across the face and punched him in the chest, causing pain and a swollen cheek. No weapon was used and no fracture occurred.",
+    "expectedCodes": [
+      "BNS 115",
+      "BNS 117",
+      "BNS 114"
+    ]
+  },
+  {
+    "id": "cheating-clear",
+    "facts": "The accused approached the complainant claiming to sell a plot of land, collected Rs. 5,00,000 as advance payment using a fake sale deed, and then stopped responding. The land the accused showed did not belong to him.",
+    "expectedCodes": [
+      "BNS 318"
+    ]
+  },
+  {
+    "id": "theft-snatching",
+    "facts": "The accused threatened the complainant with a knife and forcibly took his mobile phone.",
+    "expectedCodes": [
+      "BNS 303",
+      "BNS 309",
+      "BNS 311"
+    ]
+  },
+  {
+    "id": "criminal-intimidation",
+    "facts": "The accused repeatedly threatened to kill the complainant if he did not withdraw the complaint and sent abusive messages demanding money.",
+    "expectedCodes": [
+      "BNS 351",
+      "BNS 308"
+    ]
+  },
+  {
+    "id": "verbal-argument-negative",
+    "facts": "The accused and complainant, who are neighbours, had a heated verbal argument over a parking spot. Both raised their voices and exchanged insults. No one touched the other.",
+    "expectedCodes": []
+  },
+  {
+    "id": "death-context-negative",
+    "facts": "The complainant states that after her father's death last year, the accused refused to hand over her share of the inherited property and has been verbally threatening to evict her from the house.",
+    "expectedCodes": []
+  },
+  {
+    "id": "rental-deposit-negative",
+    "facts": "The complainant, a tenant, alleges the landlord refused to return the security deposit of Rs. 20,000 after the complainant vacated the rented flat, despite repeated requests.",
+    "expectedCodes": []
+  },
+  {
+    "id": "ocr-theft-typo",
+    "facts": "Accused dishonestly took complainant movible property mobile fone without consent from shop counter.",
+    "expectedCodes": [
+      "BNS 303"
+    ]
+  },
+  {
+    "id": "gen-BNS-1-0",
+    "facts": "The accused committed short title, commencement and application as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 1"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-1-1",
+    "facts": "Complainant alleges the accused engaged in conduct constituting short title, commencement and application during the incident.",
+    "expectedCodes": [
+      "BNS 1"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-1-2",
+    "facts": "During the incident the accused's actions match the offence of short title, commencement and application according to the stated facts.",
+    "expectedCodes": [
+      "BNS 1"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-1-3",
+    "facts": "The accused is alleged to have short title, commencement and application in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 1"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-2-4",
+    "facts": "The accused committed definitions as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 2"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-2-5",
+    "facts": "Complainant alleges the accused engaged in conduct constituting definitions during the incident.",
+    "expectedCodes": [
+      "BNS 2"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-2-6",
+    "facts": "During the incident the accused's actions match the offence of definitions according to the stated facts.",
+    "expectedCodes": [
+      "BNS 2"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-2-7",
+    "facts": "The accused is alleged to have definitions in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 2"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-3-8",
+    "facts": "The accused committed general explanations as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 3"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-3-9",
+    "facts": "Complainant alleges the accused engaged in conduct constituting general explanations during the incident.",
+    "expectedCodes": [
+      "BNS 3"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-3-10",
+    "facts": "During the incident the accused's actions match the offence of general explanations according to the stated facts.",
+    "expectedCodes": [
+      "BNS 3"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-3-11",
+    "facts": "The accused is alleged to have general explanations in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 3"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-4-12",
+    "facts": "The accused committed punishments as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 4"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-4-13",
+    "facts": "Complainant alleges the accused engaged in conduct constituting punishments during the incident.",
+    "expectedCodes": [
+      "BNS 4"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-4-14",
+    "facts": "During the incident the accused's actions match the offence of punishments according to the stated facts.",
+    "expectedCodes": [
+      "BNS 4"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-4-15",
+    "facts": "The accused is alleged to have punishments in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 4"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-5-16",
+    "facts": "The accused committed commutation of sentence as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 5"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-5-17",
+    "facts": "Complainant alleges the accused engaged in conduct constituting commutation of sentence during the incident.",
+    "expectedCodes": [
+      "BNS 5"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-5-18",
+    "facts": "During the incident the accused's actions match the offence of commutation of sentence according to the stated facts.",
+    "expectedCodes": [
+      "BNS 5"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-5-19",
+    "facts": "The accused is alleged to have commutation of sentence in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 5"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-6-20",
+    "facts": "The accused committed fractions of terms of punishment as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 6"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-6-21",
+    "facts": "Complainant alleges the accused engaged in conduct constituting fractions of terms of punishment during the incident.",
+    "expectedCodes": [
+      "BNS 6"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-6-22",
+    "facts": "During the incident the accused's actions match the offence of fractions of terms of punishment according to the stated facts.",
+    "expectedCodes": [
+      "BNS 6"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-6-23",
+    "facts": "The accused is alleged to have fractions of terms of punishment in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 6"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-7-24",
+    "facts": "The accused committed sentence may be (in certain cases of imprisonment) wholly or partly rigorous or simple as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 7"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-7-25",
+    "facts": "Complainant alleges the accused engaged in conduct constituting sentence may be (in certain cases of imprisonment) wholly or partly rigorous or simple during the incident.",
+    "expectedCodes": [
+      "BNS 7"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-7-26",
+    "facts": "During the incident the accused's actions match the offence of sentence may be (in certain cases of imprisonment) wholly or partly rigorous or simple according to the stated facts.",
+    "expectedCodes": [
+      "BNS 7"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-7-27",
+    "facts": "The accused is alleged to have sentence may be (in certain cases of imprisonment) wholly or partly rigorous or simple in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 7"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-8-28",
+    "facts": "The accused committed amount of fine, liability in default of payment of fine, etc as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 8"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-8-29",
+    "facts": "Complainant alleges the accused engaged in conduct constituting amount of fine, liability in default of payment of fine, etc during the incident.",
+    "expectedCodes": [
+      "BNS 8"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-8-30",
+    "facts": "During the incident the accused's actions match the offence of amount of fine, liability in default of payment of fine, etc according to the stated facts.",
+    "expectedCodes": [
+      "BNS 8"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-8-31",
+    "facts": "The accused is alleged to have amount of fine, liability in default of payment of fine, etc in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 8"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-9-32",
+    "facts": "The accused committed limit of punishment of offence made up of several offences as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 9"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-9-33",
+    "facts": "Complainant alleges the accused engaged in conduct constituting limit of punishment of offence made up of several offences during the incident.",
+    "expectedCodes": [
+      "BNS 9"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-9-34",
+    "facts": "During the incident the accused's actions match the offence of limit of punishment of offence made up of several offences according to the stated facts.",
+    "expectedCodes": [
+      "BNS 9"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-9-35",
+    "facts": "The accused is alleged to have limit of punishment of offence made up of several offences in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 9"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-10-36",
+    "facts": "The accused committed punishment of person guilty of one of several offences, judgment stating that it is doubtful of as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 10"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-10-37",
+    "facts": "Complainant alleges the accused engaged in conduct constituting punishment of person guilty of one of several offences, judgment stating that it is doubtful of during the incident.",
+    "expectedCodes": [
+      "BNS 10"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-10-38",
+    "facts": "During the incident the accused's actions match the offence of punishment of person guilty of one of several offences, judgment stating that it is doubtful of according to the stated facts.",
+    "expectedCodes": [
+      "BNS 10"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-10-39",
+    "facts": "The accused is alleged to have punishment of person guilty of one of several offences, judgment stating that it is doubtful of in circumstances described by the complainant.",
+    "expectedCodes": [
+      "BNS 10"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-11-40",
+    "facts": "The accused committed solitary confinement as narrated by the complainant with specific overt acts stated in the complaint.",
+    "expectedCodes": [
+      "BNS 11"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  },
+  {
+    "id": "gen-BNS-11-41",
+    "facts": "Complainant alleges the accused engaged in conduct constituting solitary confinement during the incident.",
+    "expectedCodes": [
+      "BNS 11"
+    ],
+    "source": "catalog_generated",
+    "law": "BNS"
+  }
+]

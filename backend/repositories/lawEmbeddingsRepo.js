@@ -1,6 +1,10 @@
+const crypto = require('crypto');
 const { query } = require('../config/postgres');
 
 const LAW_NAMES = ['BNS', 'BNSS', 'BSA'];
+
+const hashContent = (content) =>
+  crypto.createHash('sha256').update(String(content || ''), 'utf8').digest('hex');
 
 let pgVectorAvailableCache = null;
 
@@ -22,6 +26,13 @@ const isPgVectorAvailable = async () => {
     pgVectorAvailableCache = false;
   }
   return pgVectorAvailableCache;
+};
+
+const getPgVectorExtensionInfo = async () => {
+  const { rows } = await query(
+    `SELECT extname, extversion FROM pg_extension WHERE extname = 'vector' LIMIT 1`
+  );
+  return rows[0] || null;
 };
 
 const getEmbeddingStats = async (embeddingModel) => {
@@ -106,6 +117,15 @@ const ensureSchema = async (dimension, embeddingModel) => {
     CREATE INDEX IF NOT EXISTS idx_law_embeddings_section
     ON law_embeddings (section_id)
   `);
+  await query(`
+    ALTER TABLE law_embeddings
+    ADD COLUMN IF NOT EXISTS content_hash TEXT
+  `);
+};
+
+const tableExists = async () => {
+  const { rows } = await query(`SELECT to_regclass('public.law_embeddings') AS reg`);
+  return Boolean(rows[0]?.reg);
 };
 
 const loadRagChunks = async () => {
@@ -129,6 +149,17 @@ const listEmbeddedChunkKeys = async (embeddingModel) => {
   return new Set(rows.map((r) => `${r.chunk_type}:${r.chunk_id}`));
 };
 
+const listEmbeddedChunkHashes = async (embeddingModel) => {
+  if (!(await tableExists())) return new Map();
+  const { rows } = await query(
+    `SELECT chunk_type, chunk_id, content_hash
+     FROM law_embeddings
+     WHERE embedding_model = $1`,
+    [embeddingModel]
+  );
+  return new Map(rows.map((r) => [`${r.chunk_type}:${r.chunk_id}`, r.content_hash || null]));
+};
+
 const upsertBatch = async (rows, embeddingModel, dimension) => {
   if (!rows.length) return;
 
@@ -137,7 +168,7 @@ const upsertBatch = async (rows, embeddingModel, dimension) => {
   let i = 1;
   for (const row of rows) {
     values.push(
-      `($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}::vector, $${i++}, $${i++}, now(), now())`
+      `($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}::vector, $${i++}, $${i++}, $${i++}, now(), now())`
     );
     params.push(
       row.chunk_type,
@@ -147,14 +178,15 @@ const upsertBatch = async (rows, embeddingModel, dimension) => {
       row.section_number,
       `[${row.embedding.join(',')}]`,
       embeddingModel,
-      dimension
+      dimension,
+      row.content_hash || null
     );
   }
 
   await query(
     `INSERT INTO law_embeddings (
        chunk_type, chunk_id, section_id, law_name, section_number,
-       embedding, embedding_model, embedding_dimension, created_at, updated_at
+       embedding, embedding_model, embedding_dimension, content_hash, created_at, updated_at
      )
      VALUES ${values.join(', ')}
      ON CONFLICT (chunk_type, chunk_id, embedding_model)
@@ -164,47 +196,158 @@ const upsertBatch = async (rows, embeddingModel, dimension) => {
        section_number = EXCLUDED.section_number,
        embedding = EXCLUDED.embedding,
        embedding_dimension = EXCLUDED.embedding_dimension,
+       content_hash = EXCLUDED.content_hash,
        updated_at = now()`,
     params
   );
 };
 
 /**
- * Vector similarity search over law_embeddings, deduped to best chunk per section code.
- * @returns {Promise<Array<{code: string, sectionNumber: string, score: number}>>}
+ * Coverage and integrity audit for law_embeddings vs v_laws_rag_chunks.
  */
-const searchSimilarSections = async (queryEmbedding, embeddingModel, topK = 15) => {
+const auditCoverage = async (embeddingModel) => {
+  const pgvector = await isPgVectorAvailable();
+  const chunks = await loadRagChunks();
+  const chunkKey = (c) => `${c.chunk_type}:${c.chunk_id}`;
+
+  const byLaw = {};
+  for (const law of LAW_NAMES) byLaw[law] = { chunks: 0, embedded: 0 };
+  for (const c of chunks) byLaw[c.law_name].chunks += 1;
+
+  if (!pgvector || !(await tableExists())) {
+    return {
+      pgvector,
+      tableExists: false,
+      legalChunks: chunks.length,
+      embeddings: 0,
+      missingEmbeddings: chunks.length,
+      orphanEmbeddings: 0,
+      invalidSectionRefs: 0,
+      duplicateChunks: 0,
+      nullEmbeddings: 0,
+      dimensionMismatches: 0,
+      byLaw,
+      embeddingModel: embeddingModel || null,
+      storedDimension: null
+    };
+  }
+
+  const params = embeddingModel ? [embeddingModel] : [];
+  const modelClause = embeddingModel ? 'WHERE embedding_model = $1' : '';
+
+  const embedded = await query(
+    `SELECT chunk_type, chunk_id, section_id, law_name, embedding_dimension, content_hash
+     FROM law_embeddings ${modelClause}`,
+    params
+  );
+
+  const embeddedKeys = new Set();
+  let orphanEmbeddings = 0;
+  let invalidSectionRefs = 0;
+  let nullEmbeddings = 0;
+  let dimensionMismatches = 0;
+  let duplicateChunks = 0;
+  const storedDimension = embedded.rows[0]?.embedding_dimension ?? null;
+
+  const chunkKeySet = new Set(chunks.map(chunkKey));
+  const sectionIds = new Set(chunks.map((c) => c.section_id));
+  const seen = new Set();
+
+  for (const row of embedded.rows) {
+    const key = `${row.chunk_type}:${row.chunk_id}`;
+    if (seen.has(key)) duplicateChunks += 1;
+    seen.add(key);
+    embeddedKeys.add(key);
+    if (!chunkKeySet.has(key)) orphanEmbeddings += 1;
+    if (!sectionIds.has(row.section_id)) invalidSectionRefs += 1;
+    if (row.embedding_dimension == null) nullEmbeddings += 1;
+    else if (storedDimension && row.embedding_dimension !== storedDimension) dimensionMismatches += 1;
+    if (byLaw[row.law_name]) byLaw[row.law_name].embedded += 1;
+  }
+
+  const missingEmbeddings = chunks.filter((c) => !embeddedKeys.has(chunkKey(c))).length;
+
+  const { rows: invalidSections } = await query(
+    `SELECT COUNT(*)::int AS n
+     FROM law_embeddings le
+     LEFT JOIN laws_sections ls ON ls.id = le.section_id
+     ${modelClause ? `${modelClause} AND` : 'WHERE'} ls.id IS NULL`,
+    params
+  );
+
+  return {
+    pgvector,
+    tableExists: true,
+    legalChunks: chunks.length,
+    embeddings: embedded.rows.length,
+    missingEmbeddings,
+    orphanEmbeddings,
+    invalidSectionRefs: invalidSections[0]?.n ?? invalidSectionRefs,
+    duplicateChunks,
+    nullEmbeddings,
+    dimensionMismatches,
+    byLaw,
+    embeddingModel: embeddingModel || embedded.rows[0]?.embedding_model || null,
+    storedDimension
+  };
+};
+
+/**
+ * Vector similarity search over law_embeddings, collapsed to parent section codes.
+ * Keeps strongest chunk score and matched chunk metadata per section.
+ * @returns {Promise<Array<{code: string, sectionId: number|null, sectionNumber: string, score: number, matchedChunks: object[]}>>}
+ */
+const searchSimilarSectionsDetailed = async (queryEmbedding, embeddingModel, topK = 15) => {
   const stats = await getEmbeddingStats(embeddingModel);
   if (!stats.pgvector || stats.count === 0) return [];
 
   const vectorLiteral = `[${queryEmbedding.join(',')}]`;
   const { rows } = await query(
-    `SELECT chunk_type, chunk_id, law_name, section_number,
+    `SELECT chunk_type, chunk_id, section_id, law_name, section_number,
             1 - (embedding <=> $1::vector) AS score
      FROM law_embeddings
      WHERE embedding_model = $2
      ORDER BY embedding <=> $1::vector
      LIMIT $3`,
-    [vectorLiteral, embeddingModel, Math.max(topK * 4, topK)]
+    [vectorLiteral, embeddingModel, Math.max(topK * 6, topK)]
   );
 
   const byCode = new Map();
   for (const row of rows) {
     const code = toCanonicalCode(row.law_name, row.section_number);
     if (!code) continue;
+    const chunkMeta = {
+      chunkType: row.chunk_type,
+      chunkId: Number(row.chunk_id),
+      score: Number(row.score)
+    };
     const existing = byCode.get(code);
-    if (!existing || row.score > existing.score) {
+    if (!existing) {
       byCode.set(code, {
         code,
+        sectionId: row.section_id ?? null,
         sectionNumber: code.split(' ')[1],
-        score: Number(row.score)
+        score: Number(row.score),
+        matchedChunks: [chunkMeta]
       });
+      continue;
+    }
+    existing.matchedChunks.push(chunkMeta);
+    if (row.score > existing.score) {
+      existing.score = Number(row.score);
+      existing.sectionId = row.section_id ?? existing.sectionId;
     }
   }
 
   return [...byCode.values()]
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
+};
+
+/** @deprecated Prefer searchSimilarSectionsDetailed for hybrid RAG metadata. */
+const searchSimilarSections = async (queryEmbedding, embeddingModel, topK = 15) => {
+  const detailed = await searchSimilarSectionsDetailed(queryEmbedding, embeddingModel, topK);
+  return detailed.map(({ code, sectionNumber, score }) => ({ code, sectionNumber, score }));
 };
 
 const dedupeFtsRowsToSections = (rows, topK) => {
@@ -231,12 +374,18 @@ const dedupeFtsRowsToSections = (rows, topK) => {
 module.exports = {
   LAW_NAMES,
   toCanonicalCode,
+  hashContent,
   isPgVectorAvailable,
+  getPgVectorExtensionInfo,
   getEmbeddingStats,
   ensureSchema,
+  tableExists,
   loadRagChunks,
   listEmbeddedChunkKeys,
+  listEmbeddedChunkHashes,
   upsertBatch,
   searchSimilarSections,
-  dedupeFtsRowsToSections
+  searchSimilarSectionsDetailed,
+  dedupeFtsRowsToSections,
+  auditCoverage
 };

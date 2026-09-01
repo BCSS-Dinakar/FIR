@@ -3,8 +3,8 @@
  * recommendation for clear-cut facts, and false-positive resistance for facts that
  * share vocabulary with a section but don't satisfy its legal elements.
  *
- * Requires: VLLM_* configured. Hybrid retrieval uses PostgreSQL search_laws_rag + BM25;
- * optional pgvector dense search when EMBEDDING_* is set and law_embeddings is ingested.
+ * Requires: VLLM_* configured. Hybrid retrieval uses BM25 + PostgreSQL FTS + trigram
+ * + optional pgvector (independent paths, RRF fusion) when EMBEDDING_* is set.
  *
  * Usage: node scripts/test_bns_rag.js
  */
@@ -69,13 +69,16 @@ const run = async () => {
 
       const fmt = (x) => {
         const parts = [];
-        if (x.vectorScore != null) parts.push(`v${x.vectorScore.toFixed(3)}`);
-        else if (x.similarity != null) parts.push(`v${x.similarity.toFixed(3)}`);
-        if (x.ftsScore != null) parts.push(`f${x.ftsScore.toFixed(3)}`);
-        if (x.lexicalScore != null) parts.push(`k${x.lexicalScore.toFixed(1)}`);
-        return `${x.code}[${parts.join('/')}]`;
+        if (x.semanticScore != null) parts.push(`sem${x.semanticScore.toFixed(3)}`);
+        else if (x.vectorScore != null) parts.push(`sem${x.vectorScore.toFixed(3)}`);
+        if (x.ftsScore != null) parts.push(`fts${x.ftsScore.toFixed(3)}`);
+        if (x.bm25Score != null) parts.push(`bm25${x.bm25Score.toFixed(1)}`);
+        else if (x.lexicalScore != null) parts.push(`bm25${x.lexicalScore.toFixed(1)}`);
+        if (x.trigramScore != null) parts.push(`trg${x.trigramScore.toFixed(3)}`);
+        const src = x.retrievalMeta?.sources?.join('+') || '';
+        return `${x.code}${src ? `[${src}]` : ''}[${parts.join('/')}]`;
       };
-      console.log(`  Retrieved ${candidates.length} candidates (v=vector, f=fts, k=keyword): ${candidates.slice(0, 8).map(fmt).join(', ')}`);
+      console.log(`  Retrieved ${candidates.length} candidates: ${candidates.slice(0, 8).map(fmt).join(', ')}`);
       console.log(`  Reranked (all, pre-threshold): ${reranked.map((r) => `${r.code}:${r.confidence}`).join(', ') || '(none)'}`);
       console.log(`  Final recommendations (>= ${bnsRagService.CONFIDENCE_THRESHOLD}): ${resultCodes.join(', ') || '(none)'}`);
 
