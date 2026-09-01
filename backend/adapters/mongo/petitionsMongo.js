@@ -46,12 +46,59 @@ const findByLegacyId = async (legacyId) => {
   return mapDoc(doc);
 };
 
-const findMany = async (filter = {}) => {
-  const docs = await Petition.find(filter).sort({ createdAt: -1 });
+const buildMongoFilter = (filter = {}) => {
+  const mongoFilter = {};
+  const andClauses = [];
+
+  if (filter.status) {
+    mongoFilter.status = filter.status;
+  }
+  if (filter.withoutBlockers) {
+    andClauses.push({
+      $or: [{ blockers: { $exists: false } }, { blockers: { $size: 0 } }]
+    });
+  } else if (filter.withBlockers) {
+    andClauses.push({
+      blockers: { $exists: true, $not: { $size: 0 } }
+    });
+  }
+  if (filter.search) {
+    const escaped = String(filter.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(escaped, 'i');
+    andClauses.push({
+      $or: [
+        { id: re },
+        { petitionNo: re },
+        { complainant: re },
+        { accused: re },
+        { firNo: re }
+      ]
+    });
+  }
+  if (andClauses.length === 1) {
+    Object.assign(mongoFilter, andClauses[0]);
+  } else if (andClauses.length > 1) {
+    mongoFilter.$and = andClauses;
+  }
+  return mongoFilter;
+};
+
+const findMany = async (filter = {}, options = {}) => {
+  const mongoFilter = buildMongoFilter(filter);
+  let cursor = Petition.find(mongoFilter);
+  const sortField = options.sortBy || 'createdAt';
+  const sortDir = options.sortDir === 'asc' ? 1 : -1;
+  cursor = cursor.sort({ [sortField]: sortDir });
+  if (options.offset) cursor = cursor.skip(options.offset);
+  if (options.limit) cursor = cursor.limit(options.limit);
+  const docs = await cursor;
   return docs.map(mapDoc);
 };
 
-const count = async (filter = {}) => Petition.countDocuments(filter);
+const count = async (filter = {}) => {
+  const mongoFilter = buildMongoFilter(filter);
+  return Petition.countDocuments(mongoFilter);
+};
 
 const upsertFromPg = async (pgPetition) => {
   const payload = {
@@ -111,6 +158,7 @@ const deleteByLegacyId = async (legacyId) => {
 
 module.exports = {
   mapDoc,
+  buildMongoFilter,
   findByLegacyId,
   findMany,
   count,

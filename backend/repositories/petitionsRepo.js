@@ -75,65 +75,64 @@ const findByLegacyId = async (legacyId) => {
   return row;
 };
 
-const list = async ({ filter = {} } = {}) => {
-  try {
-    const clauses = [];
-    const params = [];
+const buildPgListQuery = (filter = {}, options = {}) => {
+  const clauses = [];
+  const params = [];
 
-    if (filter.status) {
-      params.push(filter.status);
-      clauses.push(`status = $${params.length}`);
-    }
-    if (filter.withoutBlockers) {
-      clauses.push(`(blockers = '[]'::jsonb OR jsonb_array_length(blockers) = 0)`);
-    }
-    if (filter.withBlockers) {
-      clauses.push(`jsonb_typeof(blockers) = 'array' AND jsonb_array_length(blockers) > 0`);
-    }
-    if (filter.search) {
-      params.push(`%${filter.search}%`);
-      const i = params.length;
-      clauses.push(
-        `(legacy_id ILIKE $${i} OR petition_no ILIKE $${i} OR complainant ILIKE $${i} OR accused ILIKE $${i} OR fir_no ILIKE $${i})`
-      );
-    }
-
-    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-    const { rows } = await query(
-      `SELECT * FROM petitions ${where} ORDER BY created_at DESC`,
-      params
+  if (filter.status) {
+    params.push(filter.status);
+    clauses.push(`status = $${params.length}`);
+  }
+  if (filter.withoutBlockers) {
+    clauses.push(`(blockers = '[]'::jsonb OR jsonb_array_length(blockers) = 0)`);
+  }
+  if (filter.withBlockers) {
+    clauses.push(`jsonb_typeof(blockers) = 'array' AND jsonb_array_length(blockers) > 0`);
+  }
+  if (filter.search) {
+    params.push(`%${filter.search}%`);
+    const i = params.length;
+    clauses.push(
+      `(legacy_id ILIKE $${i} OR petition_no ILIKE $${i} OR complainant ILIKE $${i} OR accused ILIKE $${i} OR fir_no ILIKE $${i})`
     );
+  }
+
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const sortField = options.sortBy === 'updatedAt' ? 'updated_at' : 'created_at';
+  const sortDir = options.sortDir === 'asc' ? 'ASC' : 'DESC';
+  let sql = `SELECT * FROM petitions ${where} ORDER BY ${sortField} ${sortDir}`;
+  if (options.limit) {
+    params.push(options.limit);
+    sql += ` LIMIT $${params.length}`;
+  }
+  if (options.offset) {
+    params.push(options.offset);
+    sql += ` OFFSET $${params.length}`;
+  }
+  return { sql, params };
+};
+
+const list = async ({ filter = {}, limit, offset, sortBy, sortDir } = {}) => {
+  const options = { limit, offset, sortBy, sortDir };
+  try {
+    const { sql, params } = buildPgListQuery(filter, options);
+    const { rows } = await query(sql, params);
     return rows.map(mapRow);
   } catch (err) {
     console.warn('[petitionsRepo] list PG failed:', err.message);
-    const mongoFilter = {};
-    if (filter.status) mongoFilter.status = filter.status;
-    return petitionsMongo.findMany(mongoFilter);
+    return petitionsMongo.findMany(filter, options);
   }
 };
 
 const count = async ({ filter = {} } = {}) => {
   try {
-    const clauses = [];
-    const params = [];
-    if (filter.status) {
-      params.push(filter.status);
-      clauses.push(`status = $${params.length}`);
-    }
-    if (filter.withoutBlockers) {
-      clauses.push(`(blockers = '[]'::jsonb OR jsonb_array_length(blockers) = 0)`);
-    }
-    if (filter.withBlockers) {
-      clauses.push(`jsonb_typeof(blockers) = 'array' AND jsonb_array_length(blockers) > 0`);
-    }
-    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-    const { rows } = await query(`SELECT COUNT(*)::int AS n FROM petitions ${where}`, params);
+    const { sql, params } = buildPgListQuery(filter);
+    const countSql = sql.replace(/^SELECT \* FROM petitions/, 'SELECT COUNT(*)::int AS n FROM petitions').replace(/ ORDER BY[\s\S]*$/, '');
+    const { rows } = await query(countSql, params);
     return rows[0].n;
   } catch (err) {
     console.warn('[petitionsRepo] count PG failed:', err.message);
-    return petitionsMongo.count(
-      filter.status ? { status: filter.status } : {}
-    );
+    return petitionsMongo.count(filter);
   }
 };
 
