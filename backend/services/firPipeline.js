@@ -25,10 +25,10 @@ const extractTextFromPdf = async (filePath) => {
   return text;
 };
 
-const extractTextFromPdfViaOcr = async (filePath) =>
+const extractTextFromPdfViaOcr = async (filePath, originalname) =>
   extractTextFromFilePath(filePath, 'application/pdf', {
     profile: OCR_PROFILE,
-    filename: path.basename(filePath)
+    filename: ensureExtension(originalname || path.basename(filePath), '.pdf')
   });
 
 const extractTextFromWord = async (filePath, mimeType, originalname) =>
@@ -126,7 +126,7 @@ const runPetitionPipeline = async (file, onStep) => {
       const reason = parseError ? `could not be parsed (${parseError.message})` : 'has no embedded text layer';
       console.log(`[Pipeline Step 1] PDF ${reason}; retrying via OCR endpoint...`);
       if (onStep) onStep({ step: 1, status: 'running', message: 'Running OCR on scanned PDF' });
-      rawContent = await extractTextFromPdfViaOcr(filePath);
+      rawContent = await extractTextFromPdfViaOcr(filePath, file.originalname);
       if (!sanitizePetitionText(rawContent)) {
         throw new Error('No text could be extracted from this PDF, even with OCR. Please check the file and try again.');
       }

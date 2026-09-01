@@ -164,17 +164,60 @@ const normalizeProfile = (profile) => {
 
 const extensionFromName = (filename = '') => path.extname(String(filename)).toLowerCase();
 
+const ensureExtension = (filename, ext) => {
+  const base = String(filename || '').trim() || `document${ext}`;
+  return extensionFromName(base) ? path.basename(base) : `${path.basename(base)}${ext}`;
+};
+
+const bufferStartsWith = (buffer, asciiPrefix) =>
+  buffer.length >= asciiPrefix.length
+  && buffer.toString('ascii', 0, asciiPrefix.length) === asciiPrefix;
+
+const sniffFormatFromBuffer = (buffer) => {
+  if (!buffer?.length) return null;
+  if (bufferStartsWith(buffer, '%PDF')) return 'pdf';
+  if (bufferStartsWith(buffer, 'PK')) return 'docx';
+  if (buffer.length >= 4 && buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0) {
+    return 'doc';
+  }
+  return null;
+};
+
+const sniffFormatFromBase64 = (base64Data) => {
+  try {
+    const sample = Buffer.from(String(base64Data).slice(0, 64), 'base64');
+    return sniffFormatFromBuffer(sample);
+  } catch {
+    return null;
+  }
+};
+
+const formatToFilename = (format) => {
+  if (format === 'pdf') return 'document.pdf';
+  if (format === 'docx') return 'document.docx';
+  if (format === 'doc') return 'document.doc';
+  return 'document.bin';
+};
+
 const isImageFormat = (mimeType, filename = '') => {
   const mime = String(mimeType || '').toLowerCase();
   if (mime.startsWith('image/')) return true;
   return IMAGE_EXTENSIONS.has(extensionFromName(filename));
 };
 
-const isDocumentFormat = (mimeType, filename = '') => {
+const isDocumentFormat = (mimeType, filename = '', bufferOrBase64 = null) => {
   const mime = String(mimeType || '').toLowerCase();
   if (mime === 'application/pdf') return true;
   if (mime.includes('wordprocessingml') || mime === 'application/msword') return true;
-  return DOCUMENT_EXTENSIONS.has(extensionFromName(filename));
+  if (DOCUMENT_EXTENSIONS.has(extensionFromName(filename))) return true;
+
+  if (Buffer.isBuffer(bufferOrBase64)) {
+    return Boolean(sniffFormatFromBuffer(bufferOrBase64));
+  }
+  if (typeof bufferOrBase64 === 'string' && bufferOrBase64.length > 0) {
+    return Boolean(sniffFormatFromBase64(bufferOrBase64));
+  }
+  return false;
 };
 
 /**
@@ -195,11 +238,13 @@ const resolveOcrPrompt = ({ profile, model } = {}) => {
   return VLM_PROMPTS[key] || VLM_PROMPTS.petition;
 };
 
-const resolveFilename = (mimeType, filename) => {
+const resolveFilename = (mimeType, filename, sniffedFormat = null) => {
   const name = String(filename || '').trim();
-  if (name) return path.basename(name);
-  const ext = MIME_TO_EXT[String(mimeType || '').toLowerCase()] || '.bin';
-  return `document${ext}`;
+  if (name && extensionFromName(name)) return path.basename(name);
+  if (name && sniffedFormat) return ensureExtension(name, `.${sniffedFormat}`);
+  const ext = MIME_TO_EXT[String(mimeType || '').toLowerCase()]
+    || (sniffedFormat ? `.${sniffedFormat}` : '.bin');
+  return name ? ensureExtension(name, ext) : `document${ext}`;
 };
 
 const normalizeOcrOutput = (text) => {
@@ -296,6 +341,12 @@ const extractViaDocumentOcrUpload = async (filePath, filename, maxTokens) => {
  * Single-page images via chat completions (PaddleOCR-VL image_url + prompt).
  */
 const extractViaChatCompletion = async (base64Data, mimeType, options = {}) => {
+  if (isDocumentFormat(mimeType, options.filename, base64Data)) {
+    throw new Error(
+      'Refusing to send PDF/Word to image OCR. Use extractTextFromFilePath() or pass filename with .pdf/.docx/.doc.'
+    );
+  }
+
   const profile = normalizeProfile(options.profile);
   const prompt = resolveOcrPrompt({ profile, model: OCR_MODEL });
   const maxTokens = resolveMaxTokens(OCR_MODEL);
@@ -337,12 +388,15 @@ const extractTextFromFilePath = async (filePath, mimeType, options = {}) => {
 
   const filename = options.filename || path.basename(filePath);
   const maxTokens = resolveMaxTokens(OCR_MODEL);
+  const buffer = fs.readFileSync(filePath);
+  const sniffed = sniffFormatFromBuffer(buffer);
 
-  if (isDocumentFormat(mimeType, filename)) {
-    return withRetries(() => extractViaDocumentOcrUpload(filePath, filename, maxTokens));
+  if (isDocumentFormat(mimeType, filename, buffer)) {
+    const uploadName = resolveFilename(mimeType, filename, sniffed);
+    return withRetries(() => extractViaDocumentOcrUpload(filePath, uploadName, maxTokens));
   }
 
-  const base64Data = fs.readFileSync(filePath, { encoding: 'base64' });
+  const base64Data = buffer.toString('base64');
   return extractTextFromDocument(base64Data, mimeType, { ...options, filename });
 };
 
@@ -358,11 +412,11 @@ const extractTextFromDocument = async (base64Data, mimeType, options = {}) => {
 
   const filename = options.filename;
   const maxTokens = resolveMaxTokens(OCR_MODEL);
+  const sniffed = sniffFormatFromBase64(base64Data);
 
-  if (isDocumentFormat(mimeType, filename)) {
-    return withRetries(() =>
-      extractViaDocumentOcrJson(base64Data, resolveFilename(mimeType, filename), maxTokens)
-    );
+  if (isDocumentFormat(mimeType, filename, base64Data)) {
+    const docName = resolveFilename(mimeType, filename, sniffed);
+    return withRetries(() => extractViaDocumentOcrJson(base64Data, docName, maxTokens));
   }
 
   if (!isImageFormat(mimeType, filename)) {
