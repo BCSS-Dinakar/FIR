@@ -1,8 +1,5 @@
-const fs = require('fs');
-const path = require('path');
-const pdfParse = require('pdf-parse');
 const { generateText } = require('./aiService');
-const { extractTextFromDocument, extractTextFromFilePath, ensureExtension } = require('./ocrService');
+const { extractPetitionTextFromUpload } = require('./documentExtractionService');
 const bnsRagService = require('./bnsRagService');
 const { extractAndValidate5W1H, partiesFromFields } = require('./fiveWOneHService');
 const {
@@ -12,56 +9,8 @@ const {
   normalizeMetadataResult
 } = require('../helpers/llmUtils');
 
-const OCR_PROFILE = process.env.OCR_PROFILE || 'petition';
+
 const AUTO_SELECT_THRESHOLD = 0.8;
-/** Embedded PDF text below this triggers PaddleOCR (jsPDF/image PDFs often ship header-only text layers). */
-const MIN_PDF_EMBEDDED_CHARS = parseInt(process.env.PDF_MIN_EMBEDDED_CHARS || '150', 10);
-const MIN_PDF_CHARS_PER_PAGE = parseInt(process.env.PDF_MIN_CHARS_PER_PAGE || '80', 10);
-
-const extractTextFromImage = async (filePath, mimeType) => {
-  const imageBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
-  return await extractTextFromDocument(imageBase64, mimeType, { profile: OCR_PROFILE });
-};
-
-const extractTextFromPdf = async (filePath) => {
-  const buffer = fs.readFileSync(filePath);
-  const { text, numpages } = await pdfParse(buffer);
-  return {
-    text: text || '',
-    numpages: Math.max(1, numpages || 1)
-  };
-};
-
-const pdfNeedsOcrFallback = (embeddedText, numpages = 1) => {
-  const cleaned = sanitizePetitionText(embeddedText);
-  if (!cleaned) {
-    return { needed: true, reason: 'has no embedded text layer' };
-  }
-  const charCount = cleaned.length;
-  if (charCount < MIN_PDF_EMBEDDED_CHARS) {
-    return { needed: true, reason: `embedded text too short (${charCount} chars)` };
-  }
-  const charsPerPage = charCount / Math.max(1, numpages);
-  if (charsPerPage < MIN_PDF_CHARS_PER_PAGE) {
-    return {
-      needed: true,
-      reason: `embedded text sparse (${Math.round(charsPerPage)} chars/page across ${numpages} page(s))`
-    };
-  }
-  return { needed: false };
-};
-
-const extractTextFromPdfViaOcr = async (filePath, originalname) =>
-  extractTextFromFilePath(filePath, 'application/pdf', {
-    profile: OCR_PROFILE,
-    filename: ensureExtension(originalname || path.basename(filePath), '.pdf')
-  });
-
-const extractTextFromWord = async (filePath, mimeType, originalname) =>
-  extractTextFromFilePath(filePath, mimeType, {
-    profile: OCR_PROFILE,
-    filename: originalname || path.basename(filePath)
-  });
 
 const translateToEnglish = async (content) => {
   const petition = sanitizePetitionText(content);
@@ -129,61 +78,7 @@ ${petition}`;
   }
 };
 
-const extractRawContentFromFile = async (file) => {
-  const filePath = file.path;
-  const mimeType = file.mimetype;
-
-  let rawContent = '';
-  if (mimeType.startsWith('image/')) {
-    rawContent = await extractTextFromImage(filePath, mimeType);
-  } else if (mimeType === 'application/pdf' || file.originalname.endsWith('.pdf')) {
-    let parseError = null;
-    let embeddedText = '';
-    let pageCount = 1;
-    try {
-      const parsed = await extractTextFromPdf(filePath);
-      embeddedText = parsed.text;
-      pageCount = parsed.numpages;
-    } catch (err) {
-      parseError = err;
-    }
-
-    const ocrFallback = parseError
-      ? { needed: true, reason: `could not be parsed (${parseError.message})` }
-      : pdfNeedsOcrFallback(embeddedText, pageCount);
-
-    if (ocrFallback.needed) {
-      console.log(`[Pipeline Step 1] PDF ${ocrFallback.reason}; retrying via OCR endpoint...`);
-      rawContent = await extractTextFromPdfViaOcr(filePath, file.originalname);
-      if (!sanitizePetitionText(rawContent)) {
-        throw new Error('No text could be extracted from this PDF, even with OCR. Please check the file and try again.');
-      }
-    } else {
-      rawContent = embeddedText;
-    }
-  } else if (mimeType.startsWith('text/') || mimeType === 'application/octet-stream' || file.originalname.endsWith('.txt')) {
-    rawContent = fs.readFileSync(filePath, 'utf-8');
-  } else if (
-    mimeType.includes('wordprocessingml')
-    || mimeType === 'application/msword'
-    || file.originalname.endsWith('.docx')
-    || file.originalname.endsWith('.doc')
-  ) {
-    console.log(`[Pipeline Step 1] Extracting text from Word document via OCR gateway...`);
-    rawContent = await extractTextFromWord(filePath, mimeType, file.originalname);
-  } else {
-    throw new Error(
-      'Unsupported file type. Please upload a plain text file, an image, a PDF, or a Word document (.docx/.doc).'
-    );
-  }
-
-  rawContent = sanitizePetitionText(rawContent);
-  if (isBlank(rawContent)) {
-    throw new Error('Uploaded file contains no readable text.');
-  }
-
-  return rawContent;
-};
+const extractRawContentFromFile = async (file) => extractPetitionTextFromUpload(file);
 
 const buildMetadataFromValidation = async (translated, validationResult) => {
   const parties = partiesFromFields(validationResult.fields);
