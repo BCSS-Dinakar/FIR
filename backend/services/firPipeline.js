@@ -10,7 +10,10 @@ const {
 } = require('../helpers/llmUtils');
 
 
-const AUTO_SELECT_THRESHOLD = 0.8;
+const AUTO_SELECT_THRESHOLD = parseFloat(process.env.RAG_AUTO_SELECT_THRESHOLD || '0.8');
+const DISPLAY_FALLBACK_COUNT = parseInt(process.env.RAG_DISPLAY_FALLBACK_COUNT || '3', 10);
+
+const recommendationToLabel = (r) => (r.title ? `${r.code} (${r.title})` : r.code);
 
 const translateToEnglish = async (content) => {
   const petition = sanitizePetitionText(content);
@@ -108,13 +111,17 @@ const attachSectionRecommendations = async (translated, validationResult, metada
     );
   }
 
-  metadata.sections = sectionRecommendations
-    .filter((r) => r.confidence >= AUTO_SELECT_THRESHOLD)
-    .map((r) => (r.title ? `${r.code} (${r.title})` : r.code));
   metadata.sectionRecommendations = sectionRecommendations;
+
+  const autoSelected = sectionRecommendations.filter((r) => r.confidence >= AUTO_SELECT_THRESHOLD);
+  const forDisplay = autoSelected.length > 0
+    ? autoSelected
+    : sectionRecommendations.slice(0, DISPLAY_FALLBACK_COUNT);
+
+  metadata.sections = forDisplay.map(recommendationToLabel);
   console.log(
     `[Pipeline Step 4] Auto-selected ${metadata.sections.length} section(s) ` +
-      `(confidence ≥ ${AUTO_SELECT_THRESHOLD}).`
+      `(confidence ≥ ${AUTO_SELECT_THRESHOLD}${autoSelected.length ? '' : `, fallback top ${DISPLAY_FALLBACK_COUNT}`}).`
   );
   return metadata;
 };

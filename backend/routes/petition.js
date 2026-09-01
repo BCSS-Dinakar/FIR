@@ -7,6 +7,7 @@ const usersRepo = require('../repositories/usersRepo');
 const { runPetitionPipeline, runPipelineStep1, runPipelineStep2, runPipelineStep3, runPipelineStep4 } = require('../services/firPipeline');
 const bnsCatalogService = require('../services/bnsCatalogService');
 const { extractFirFields } = require('../services/firAutofillService');
+const { resolvePetitionDisplaySections } = require('../helpers/petitionSections');
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-const formatPetition = (p) => {
+const formatPetition = (p, { firSections = null } = {}) => {
   if (!p) return null;
   return {
     _id: p._id || p.id,
@@ -24,7 +25,8 @@ const formatPetition = (p) => {
     date: p.date,
     complainant: p.complainant,
     accused: p.accused,
-    sections: p.sections || [],
+    sections: resolvePetitionDisplaySections(p, { firSections }),
+    sectionRecommendations: p.sectionRecommendations || [],
     score: p.score,
     status: p.status,
     blockers: p.blockers || [],
@@ -47,10 +49,21 @@ const formatPetition = (p) => {
   };
 };
 
+const formatPetitionWithFirFallback = async (p) => {
+  let firSections = null;
+  const storedEmpty = !(p.sections || []).length;
+  const recsEmpty = !(p.sectionRecommendations || []).length;
+  if (p.status === 'FIR Filed' && storedEmpty && recsEmpty) {
+    const fir = await firsRepo.findByPetitionLegacyId(p.id);
+    firSections = fir?.sections || null;
+  }
+  return formatPetition(p, { firSections });
+};
+
 router.get('/draftandfile', async (req, res) => {
   try {
     const petitions = await petitionsRepo.list({ filter: { withoutBlockers: true } });
-    const formatted = petitions.map(formatPetition);
+    const formatted = await Promise.all(petitions.map(formatPetitionWithFirFallback));
     const totalScanned = await petitionsRepo.count();
     const pendingFiling = await petitionsRepo.count({ filter: { status: 'Pending Filing' } });
     const firsRegistered = await petitionsRepo.count({ filter: { status: 'FIR Filed' } });
@@ -336,7 +349,15 @@ router.get('/:id', async (req, res) => {
     if (!petition) {
       return res.status(404).json({ success: false, message: 'Petition not found' });
     }
-    return res.status(200).json(petition);
+    let firSections = null;
+    if (petition.status === 'FIR Filed' && !(petition.sections || []).length && !(petition.sectionRecommendations || []).length) {
+      const fir = await firsRepo.findByPetitionLegacyId(petition.id);
+      firSections = fir?.sections || null;
+    }
+    return res.status(200).json({
+      ...petition,
+      sections: resolvePetitionDisplaySections(petition, { firSections })
+    });
   } catch (error) {
     console.error('Fetch single petition error:', error);
     return res.status(500).json({ success: false, message: error.message });

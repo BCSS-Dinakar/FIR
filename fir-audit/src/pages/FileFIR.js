@@ -463,8 +463,17 @@ export default function FileFIR() {
                     <td className="px-6 py-4 font-medium opacity-70">{p.accused}</td>
                     <td className="px-6 py-4 font-mono text-[11px] text-blue-500 font-bold">
                       <div className="flex flex-wrap gap-1 max-w-[180px]">
-                        {p.sections.map((sec) => (
-                          <span key={sec} className="bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px] truncate">{sec}</span>
+                        {(p.sections?.length ? p.sections : ['Not classified']).map((sec) => (
+                          <span
+                            key={sec}
+                            className={`px-1.5 py-0.5 rounded text-[10px] truncate ${
+                              sec === 'Not classified'
+                                ? (dark ? 'text-white/40 bg-white/[0.04]' : 'text-black/40 bg-black/[0.04]')
+                                : 'bg-blue-500/10'
+                            }`}
+                          >
+                            {sec}
+                          </span>
                         ))}
                       </div>
                     </td>
