@@ -208,7 +208,37 @@ const create = async (data) => {
            $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
            $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,
            $39::jsonb,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53
-         ) RETURNING *`,
+         )
+         ON CONFLICT (petition_id) DO UPDATE SET
+           mongo_id=COALESCE(EXCLUDED.mongo_id, firs.mongo_id), fir_no=EXCLUDED.fir_no,
+           district=EXCLUDED.district, police_station=EXCLUDED.police_station, year=EXCLUDED.year,
+           fir_date=EXCLUDED.fir_date, fir_time=EXCLUDED.fir_time, sections=EXCLUDED.sections,
+           occurrence_day=EXCLUDED.occurrence_day, occurrence_date_from=EXCLUDED.occurrence_date_from,
+           occurrence_time_from=EXCLUDED.occurrence_time_from, occurrence_date_to=EXCLUDED.occurrence_date_to,
+           occurrence_time_to=EXCLUDED.occurrence_time_to, prior_to_time_period=EXCLUDED.prior_to_time_period,
+           received_date=EXCLUDED.received_date, received_time=EXCLUDED.received_time,
+           gd_entry_no=EXCLUDED.gd_entry_no, gd_date_time=EXCLUDED.gd_date_time,
+           type_of_information=EXCLUDED.type_of_information, distance_direction=EXCLUDED.distance_direction,
+           beat_no=EXCLUDED.beat_no, occurrence_address=EXCLUDED.occurrence_address,
+           outside_limit_ps_name=EXCLUDED.outside_limit_ps_name, outside_limit_district=EXCLUDED.outside_limit_district,
+           complainant=EXCLUDED.complainant, complainant_relative=EXCLUDED.complainant_relative,
+           complainant_dob=EXCLUDED.complainant_dob, complainant_age=EXCLUDED.complainant_age,
+           complainant_nationality=EXCLUDED.complainant_nationality, complainant_caste=EXCLUDED.complainant_caste,
+           complainant_passport=EXCLUDED.complainant_passport,
+           complainant_passport_issue_date=EXCLUDED.complainant_passport_issue_date,
+           complainant_passport_issue_place=EXCLUDED.complainant_passport_issue_place,
+           complainant_occupation=EXCLUDED.complainant_occupation, complainant_phone=EXCLUDED.complainant_phone,
+           complainant_address=EXCLUDED.complainant_address, accused=EXCLUDED.accused,
+           accused_list=EXCLUDED.accused_list, reasons_for_delay=EXCLUDED.reasons_for_delay,
+           properties_stolen=EXCLUDED.properties_stolen, total_value_stolen=EXCLUDED.total_value_stolen,
+           inquest_report=EXCLUDED.inquest_report, incident_facts=EXCLUDED.incident_facts,
+           action_taken=EXCLUDED.action_taken, refused_investigation_due_to=EXCLUDED.refused_investigation_due_to,
+           transferred_ps=EXCLUDED.transferred_ps, transferred_district=EXCLUDED.transferred_district,
+           officer_name=EXCLUDED.officer_name, officer_rank=EXCLUDED.officer_rank, officer_no=EXCLUDED.officer_no,
+           dispatch_date_time=EXCLUDED.dispatch_date_time,
+           filed_at=CASE WHEN EXCLUDED.filed_at <> '' THEN EXCLUDED.filed_at ELSE firs.filed_at END,
+           updated_at=now()
+         RETURNING *`,
         params
       );
       return {

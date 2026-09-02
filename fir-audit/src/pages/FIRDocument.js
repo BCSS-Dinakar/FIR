@@ -116,23 +116,27 @@ export default function FIRDocument() {
         const currentDateStr = new Date().toISOString().substring(0, 10);
         const currentTimeStr = new Date().toTimeString().substring(0, 8);
 
+        // A saved FIR record — filed, or a previously saved draft — is always
+        // authoritative over AI autofill, since it reflects what the officer
+        // actually entered last. A 404 here just means no draft exists yet.
         let firData = {};
-        if (p.status === 'FIR Filed') {
-          try {
-            firData = await getFirByPetitionId(p.id);
-          } catch (e) {
-            console.error('Failed to fetch FIR data for petition:', e);
-          }
+        let hasSavedFir = false;
+        try {
+          firData = await getFirByPetitionId(p.id);
+          hasSavedFir = true;
+        } catch (e) {
+          // No saved FIR yet — expected for a fresh petition.
         }
 
-        // AI FIR field extraction — runs only while drafting (an already-filed
-        // FIR's own record above is authoritative, so skip the call there to
-        // save a redundant LLM round trip). Reads the officer-VERIFIED petition
+        // AI FIR field extraction — runs only when no saved FIR record exists
+        // yet (a filed or drafted FIR's own record above is authoritative, so
+        // skip the call there to save a redundant LLM round trip and avoid
+        // clobbering manually-entered data). Reads the officer-VERIFIED petition
         // text (step2Output — approved through the pipeline's review steps, not
         // the raw unverified OCR), and is cached server-side after first run.
         // See backend/services/firAutofillService.js for the extraction schema.
         let autofill = {};
-        if (p.status !== 'FIR Filed') {
+        if (!hasSavedFir) {
           try {
             const result = await autofillFir(p.id);
             autofill = result?.fields || {};
@@ -141,11 +145,18 @@ export default function FIRDocument() {
           }
         }
 
-        // Accused: prefer the already-filed FIR record, then AI-extracted
-        // accused details, then fall back to splitting the coarse Step 1
-        // complainant/accused names if neither is available.
+        // Sections: prefer the saved FIR record (filed or draft) over the
+        // petition's own sections, since the officer may have changed the
+        // selection while drafting the FIR.
+        if (hasSavedFir && firData.sections?.length > 0) {
+          setModalSections(firData.sections);
+        }
+
+        // Accused: prefer the saved FIR record (filed or draft), then
+        // AI-extracted accused details, then fall back to splitting the
+        // coarse Step 1 complainant/accused names if neither is available.
         let mappedAccused = [];
-        if (p.status === 'FIR Filed' && firData.accusedList?.length > 0) {
+        if (hasSavedFir && firData.accusedList?.length > 0) {
           mappedAccused = firData.accusedList;
         } else if (autofill.accusedList?.length > 0) {
           mappedAccused = autofill.accusedList.map((a) => ({ ...blankAccused(), ...a }));
@@ -241,37 +252,14 @@ export default function FIRDocument() {
     setAccusedList(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleRegisterAndFile = async () => {
-    if (!petition) return;
-
-    const newFirNumber = formData.firNo || `FIR/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
-
-    const updatedPet = {
-      ...petition,
-      complainant: formData.complainantName,
-      accused: accusedList.map(a => a.name).join(', '),
-      sections: modalSections,
-      status: 'FIR Filed',
-      firNo: newFirNumber,
-      filedAt: new Date().toLocaleString(),
-      district: formData.district,
-      policeStation: formData.policeStation,
-      gdNumber: formData.gdEntryNo,
-      incidentDate: formData.occurrenceDateFrom,
-      incidentTime: formData.occurrenceTimeFrom,
-      occurrencePlace: formData.occurrenceAddress,
-      complainantRelative: formData.complainantRelative,
-      complainantPhone: formData.complainantMobile,
-      complainantAddress: formData.complainantAddress,
-      incidentFacts: formData.incidentFacts,
-      blockers: [] // Clear blockers when filed
-    };
-
-    const firRecord = {
+  // Shared by both "Save Draft" and "Register & File FIR" — builds the FIR
+  // payload from current form state. `filedAt` is left blank for drafts so
+  // the backend upsert doesn't clobber the real filing timestamp.
+  const buildFirRecord = (firNo, filedAt = '') => ({
       // Core
-      firNo: newFirNumber,
+      firNo,
       petitionId: petition.id,
-      filedAt: new Date().toLocaleString(),
+      filedAt,
 
       // Section 1
       district:       formData.district,
@@ -349,10 +337,68 @@ export default function FIRDocument() {
 
       // Section 15
       dispatchDateTime: formData.dispatchDateTime
+  });
+
+  const handleSaveDraft = async () => {
+    if (!petition) return;
+
+    const updatedPet = {
+      ...petition,
+      complainant: formData.complainantName,
+      accused: accusedList.map(a => a.name).join(', '),
+      sections: modalSections,
+      firNo: formData.firNo,
+      district: formData.district,
+      policeStation: formData.policeStation,
+      gdNumber: formData.gdEntryNo,
+      incidentDate: formData.occurrenceDateFrom,
+      incidentTime: formData.occurrenceTimeFrom,
+      occurrencePlace: formData.occurrenceAddress,
+      complainantRelative: formData.complainantRelative,
+      complainantPhone: formData.complainantMobile,
+      complainantAddress: formData.complainantAddress,
+      incidentFacts: formData.incidentFacts
     };
 
     try {
-      await createFir(firRecord);
+      await createFir(buildFirRecord(formData.firNo));
+      await updatePetition(petition.id, updatedPet);
+      setPetition(updatedPet);
+      alert('Draft saved.');
+    } catch (err) {
+      console.error('Failed to save FIR draft:', err);
+      alert('Save draft failed: ' + err.message);
+    }
+  };
+
+  const handleRegisterAndFile = async () => {
+    if (!petition) return;
+
+    const newFirNumber = formData.firNo || `FIR/HYD/2026/${Math.floor(100 + Math.random() * 900)}`;
+
+    const updatedPet = {
+      ...petition,
+      complainant: formData.complainantName,
+      accused: accusedList.map(a => a.name).join(', '),
+      sections: modalSections,
+      status: 'FIR Filed',
+      firNo: newFirNumber,
+      filedAt: new Date().toLocaleString(),
+      district: formData.district,
+      policeStation: formData.policeStation,
+      gdNumber: formData.gdEntryNo,
+      incidentDate: formData.occurrenceDateFrom,
+      incidentTime: formData.occurrenceTimeFrom,
+      occurrencePlace: formData.occurrenceAddress,
+      complainantRelative: formData.complainantRelative,
+      complainantPhone: formData.complainantMobile,
+      complainantAddress: formData.complainantAddress,
+      incidentFacts: formData.incidentFacts,
+      blockers: [] // Clear blockers when filed
+    };
+
+    try {
+      await createFir(buildFirRecord(newFirNumber, new Date().toLocaleString()));
       await updatePetition(petition.id, updatedPet);
       setPetition(updatedPet);
       alert('FIR Registered and Filed successfully!');
@@ -468,6 +514,11 @@ export default function FIRDocument() {
           </FIRButton>
         </div>
         <div className="flex gap-2.5">
+          {!isFiled && (
+            <FIRButton onClick={handleSaveDraft} variant="secondary" dark={dark}>
+              💾 Save Draft
+            </FIRButton>
+          )}
           {!isFiled && (
             <FIRButton onClick={handleRegisterAndFile} variant="primary">
               📂 Register &amp; File FIR
