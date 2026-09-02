@@ -54,6 +54,9 @@ const run = async () => {
     `Embedding endpoint OK — model=${probe.model} dimension=${probe.dimension} latency=${probe.latencyMs.toFixed(0)}ms`
   );
 
+  await lawEmbeddingsRepo.ensureSchema(probe.dimension, embeddingModel);
+  console.log(`Ensured law_embeddings schema (dimension=${probe.dimension}, model=${embeddingModel}).`);
+
   const chunks = await lawEmbeddingsRepo.loadRagChunks();
   const existingHashes = await lawEmbeddingsRepo.listEmbeddedChunkHashes(embeddingModel);
   const existingKeys = await lawEmbeddingsRepo.listEmbeddedChunkKeys(embeddingModel);
@@ -100,16 +103,6 @@ const run = async () => {
     printReport(report);
     return;
   }
-
-  const stats = await lawEmbeddingsRepo.getEmbeddingStats(embeddingModel);
-  if (stats.count > 0 && stats.dimension && stats.dimension !== probe.dimension) {
-    throw new Error(
-      `Dimension mismatch: stored=${stats.dimension}, endpoint=${probe.dimension}. ` +
-      'Truncate law_embeddings or switch back to the original model before re-ingesting.'
-    );
-  }
-
-  await lawEmbeddingsRepo.ensureSchema(probe.dimension, embeddingModel);
 
   const texts = toProcess.map((c) => String(c.content || '').slice(0, 6000));
   const BATCH = parseInt(process.env.EMBEDDING_BATCH_SIZE || '50', 10);

@@ -140,6 +140,7 @@ const loadRagChunks = async () => {
 };
 
 const listEmbeddedChunkKeys = async (embeddingModel) => {
+  if (!(await tableExists())) return new Set();
   const { rows } = await query(
     `SELECT chunk_type, chunk_id
      FROM law_embeddings
