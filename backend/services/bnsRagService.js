@@ -10,6 +10,8 @@ const {
 } = require('../helpers/llmUtils');
 
 const CONFIDENCE_THRESHOLD = 0.5;
+const RETRIEVAL_FALLBACK_CONFIDENCE = 0.55;
+const DISPLAY_FALLBACK_COUNT = parseInt(process.env.RAG_DISPLAY_FALLBACK_COUNT || '3', 10);
 
 const extractIncidentFacts = async (content) => {
   const petition = sanitizePetitionText(content, { maxChars: 24000 });
@@ -146,7 +148,15 @@ Return ONLY JSON:
   const response = await generateText(prompt, 1400, { mode: 'json', jsonMode: true });
   const parsed = parseJsonFromLlm(response, { fallback: { recommendations: [] }, label: 'BNS reranker' });
   const sections = parsed.recommendations || parsed.sections || [];
-  return normalizeRerankSections(sections);
+  const normalized = normalizeRerankSections(sections);
+  if (!sections.length) {
+    console.log('[bnsRagService] judge returned empty recommendations (strict rejection)');
+  } else if (!normalized.length) {
+    console.log(
+      `[bnsRagService] judge returned ${sections.length} section(s) but none passed confidence >= ${CONFIDENCE_THRESHOLD}`
+    );
+  }
+  return normalized;
 };
 
 const recommendSections = async (translatedContent) => {
@@ -180,7 +190,24 @@ const recommendSections = async (translatedContent) => {
     );
   }
 
-  return { facts, recommendations, retrievalStats };
+  if (recommendations.length === 0 && candidates.length > 0) {
+    const fallback = candidates.slice(0, DISPLAY_FALLBACK_COUNT).map((entry) => ({
+      code: entry.code,
+      law: entry.law,
+      act: entry.act,
+      title: entry.title,
+      confidence: RETRIEVAL_FALLBACK_CONFIDENCE,
+      matchedFacts: [],
+      reason: 'Hybrid retrieval candidate (Qwen judge did not confirm any section)',
+      retrievalFallback: true
+    }));
+    console.log(
+      `[bnsRagService] retrieval fallback (${fallback.length}): ${fallback.map((r) => r.code).join(', ')}`
+    );
+    return { facts, recommendations: fallback, retrievalStats, judgeConfirmed: false };
+  }
+
+  return { facts, recommendations, retrievalStats, judgeConfirmed: true };
 };
 
 module.exports = {

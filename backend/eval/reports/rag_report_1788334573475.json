@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-09-02T07:36:13.474Z",
+  "embeddingModel": "BAAI/bge-m3",
+  "embeddingEndpoint": "http://127.0.0.1:8080/v1",
+  "vectorDimension": 1024,
+  "pgvector": "v0.8.1",
+  "legalChunks": 4620,
+  "embeddedChunks": 4620,
+  "missingEmbeddings": 0,
+  "orphanEmbeddings": 0,
+  "retrieval": {
+    "bm25": 50,
+    "fts": 31,
+    "trigram": 30,
+    "vector": 30,
+    "semanticStatus": "ACTIVE",
+    "union": 86,
+    "rrfFinal": 20,
+    "rrfLimit": 20,
+    "weights": {
+      "bm25": 1,
+      "fts": 0.8,
+      "trigram": 0.4,
+      "semantic": 1
+    }
+  },
+  "latenciesMs": {
+    "ftsMs": 398.702237,
+    "bm25Ms": 547.271293,
+    "semanticMs": 1058.512091,
+    "trigramMs": 1079.810534,
+    "fusionMs": 1081.011,
+    "totalMs": 1081.021575
+  },
+  "topCandidates": [
+    {
+      "code": "BNS 308",
+      "sources": [
+        "bm25",
+        "fts",
+        "semantic"
+      ],
+      "rrfScore": 0.039544344544344544
+    },
+    {
+      "code": "BNS 140",
+      "sources": [
+        "bm25",
+        "fts",
+        "semantic"
+      ],
+      "rrfScore": 0.03945705606186137
+    },
+    {
+      "code": "BNSS 183",
+      "sources": [
+        "bm25",
+        "fts",
+        "semantic"
+      ],
+      "rrfScore": 0.03887218045112782
+    },
+    {
+      "code": "BNSS 185",
+      "sources": [
+        "bm25",
+        "fts",
+        "semantic"
+      ],
+      "rrfScore": 0.03837657656299846
+    },
+    {
+      "code": "BNSS 497",
+      "sources": [
+        "bm25",
+        "fts",
+        "semantic"
+      ],
+      "rrfScore": 0.03535277589301906
+    }
+  ],
+  "productionReadiness": {
+    "pgvector": true,
+    "embeddingsIngested": true,
+    "embeddingEndpoint": true,
+    "semanticRetrieval": true,
+    "lexicalRetrieval": true
+  }
+}

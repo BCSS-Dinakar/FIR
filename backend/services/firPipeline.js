@@ -119,9 +119,12 @@ const attachSectionRecommendations = async (translated, validationResult, metada
     : sectionRecommendations.slice(0, DISPLAY_FALLBACK_COUNT);
 
   metadata.sections = forDisplay.map(recommendationToLabel);
+  const usedRetrievalFallback = sectionRecommendations.some((r) => r.retrievalFallback);
   console.log(
     `[Pipeline Step 4] Auto-selected ${metadata.sections.length} section(s) ` +
-      `(confidence ≥ ${AUTO_SELECT_THRESHOLD}${autoSelected.length ? '' : `, fallback top ${DISPLAY_FALLBACK_COUNT}`}).`
+      (usedRetrievalFallback
+        ? '(retrieval fallback — judge confirmed none)'
+        : `(confidence ≥ ${AUTO_SELECT_THRESHOLD}${autoSelected.length ? '' : `, fallback top ${DISPLAY_FALLBACK_COUNT}`}).`)
   );
   return metadata;
 };
